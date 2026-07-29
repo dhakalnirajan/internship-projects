@@ -1,0 +1,36 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Dataset files (large)
+data/                     # ignore the whole data folder
+*.zip
+*.npz
+*.h5
+*.pkl
+
+# Training outputs (large logs & weights)
+runs/
+models/*.pt
+models/*.onnx
+exports/
+*.log
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
