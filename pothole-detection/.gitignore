@@ -1,2 +1,4 @@
-data/*
+data/**/**/*.jpg
+data/**/**/*.png
+data/**/**/*.xml
 !data/.gitkeep

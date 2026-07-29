@@ -1,0 +1,2 @@
+Download the dataset and keep the directories `images/` and `annotated/` inside `raw/`
+directory, which all of them are kept inside the current directory `data/`.
