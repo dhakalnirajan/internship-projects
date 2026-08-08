@@ -1,0 +1,23 @@
+{
+  "model_name": "K3-Edu-200M",
+  "d_model": 768,
+  "n_layers": 12,
+  "n_heads": 12,
+  "head_dim": 64,
+  "d_ffn": 3072,
+  "max_seq_len": 8192,
+  "vocab_size": 50000,
+  "batch_size": 4,
+  "peak_lr": 0.0003,
+  "min_lr": 0.00001,
+  "warmup_steps": 2000,
+  "total_steps": 150000,
+  "dropout": 0.1,
+  "weight_decay": 0.1,
+  "grad_clip": 1.0,
+  "dataset_dir": "datasets",
+  "use_fp8": true,
+  "use_int8": true,
+  "use_kda": true,
+  "use_attnres": true
+}

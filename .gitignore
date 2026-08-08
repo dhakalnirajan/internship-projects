@@ -34,3 +34,29 @@ exports/
 *.swo
 .DS_Store
 
+
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+*.exe
+
+# Checkpoints (large binary files)
+checkpoints/*.bin
+checkpoints/*.pt
+checkpoints/*.pth
+
+# Datasets (large text files)
+datasets/*.txt
+datasets/*.md
+datasets/*.markdown
+datasets/train/
+datasets/val/
+**/datasets/**
+
+# Logs
+training.log
+*.log
+evaluation_results.json
+
