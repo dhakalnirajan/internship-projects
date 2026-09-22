@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K3-Edu — Live Training Monitor</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<style>
+:root {
+    --bg: #0a0a0c;
+    --panel: #101014;
+    --panel2: #17171d;
+    --border: #26262e;
+    --text: #e8e8ee;
+    --muted: #82828e;
+    --accent: #00d4aa;
+    --accent2: #4f8ef7;
+    --warn: #f59e0b;
+    --bad: #ec4899;
+    --up: #22c55e;
+    --down: #ef4444;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; font-size: 14px;
+}
+code { background: var(--panel2); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+/* ============ top nav ============ */
+nav {
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 24px; border-bottom: 1px solid var(--border);
+    background: var(--bg); position: sticky; top: 0; z-index: 20; height: 52px;
+}
+nav .tab {
+    padding: 0 14px; line-height: 52px; cursor: pointer; color: var(--muted);
+    font-size: 14px; border-bottom: 2px solid transparent; user-select: none;
+}
+nav .tab:hover { color: var(--text); }
+nav .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+nav .spacer { flex: 1; }
+nav .total-cost { text-align: right; margin-right: 28px; }
+nav .total-cost .t-label { font-size: 10px; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+nav .total-cost .t-value { font-size: 17px; font-weight: 700; color: var(--text); }
+.clock { text-align: center; margin-left: 18px; }
+.clock .c-city { font-size: 10px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
+.clock .c-time { font-size: 13px; color: var(--text); }
+.clock .c-time .ampm { font-size: 10px; color: var(--muted); }
+
+/* ============ layout ============ */
+.page { display: none; padding: 20px 24px 60px; max-width: 1720px; margin: 0 auto; }
+.page.active { display: block; }
+
+/* ============ run header ============ */
+.run-header {
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--panel); padding: 14px 18px; margin-bottom: 14px;
+}
+.run-line1 { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.run-name { font-size: 16px; font-weight: 700; }
+.run-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+.run-dot.running { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 1.6s infinite; }
+.run-dot.stopped { background: var(--bad); }
+.run-dot.waiting { background: var(--warn); }
+@keyframes pulse { 50% { opacity: .4; } }
+.run-status { color: var(--muted); font-size: 12px; }
+.run-step { font-size: 20px; font-weight: 700; margin-left: 18px; }
+.run-step small { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 4px; }
+.run-times { margin-left: auto; text-align: right; font-size: 11px; color: var(--muted); line-height: 1.6; }
+.run-times b { color: var(--text); font-weight: 700; }
+
+/* KPI row under run header */
+.kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px;
+        background: var(--border); border: 1px solid var(--border);
+        border-radius: 10px; overflow: hidden; margin-bottom: 14px; }
+.kpi { background: var(--panel); padding: 12px 16px; }
+.kpi .k-label { font-size: 10px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
+.kpi .k-label i { margin-right: 6px; color: var(--accent2); }
+.kpi .k-value { font-size: 21px; font-weight: 700; margin-top: 3px; }
+.kpi .k-delta { font-size: 11px; margin-top: 2px; }
+.kpi .k-delta .up { color: var(--up); } .kpi .k-delta .down { color: var(--down); }
+
+/* ============ section titles ============ */
+.sect { font-size: 12px; letter-spacing: .08em; color: var(--muted);
+        text-transform: lowercase; margin: 26px 0 10px; }
+.sect i { margin-right: 7px; color: var(--accent); }
+
+/* ============ global controls ============ */
+.controls {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    margin: 0 0 14px; font-size: 12px; color: var(--muted);
+}
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg button {
+    background: var(--panel2); border: none; color: var(--muted);
+    font: inherit; padding: 5px 13px; cursor: pointer; font-size: 12px;
+}
+.seg button.active { background: var(--text); color: var(--bg); font-weight: 700; }
+.slider-wrap { display: flex; align-items: center; gap: 10px; }
+input[type=range] { width: 150px; accent-color: var(--text); }
+#smoothVal { color: var(--text); min-width: 36px; }
+.legend { display: flex; gap: 16px; margin-left: auto; font-size: 12px; }
+.legend .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+
+/* ============ metric grid cards ============ */
+.mgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.mcard { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.mcard .m-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.mcard .m-title { font-size: 12px; color: var(--muted); }
+.mcard .m-vals { text-align: right; font-size: 13px; line-height: 1.8; }
+.mcard .m-vals .mv { white-space: nowrap; }
+.mcard .m-vals i.fa-circle { font-size: 7px; margin-right: 6px; }
+.mcard .m-vals .mdelta { font-size: 10px; margin-left: 5px; }
+.mcard canvas { width: 100%; height: 130px; display: block; }
+
+/* tooltip */
+#tooltip {
+    position: fixed; pointer-events: none; display: none; z-index: 50;
+    background: rgba(10,10,12,.97); border: 1px solid var(--accent2);
+    border-radius: 8px; padding: 9px 12px; font-size: 11px; line-height: 1.7;
+    box-shadow: 0 6px 24px rgba(0,0,0,.6); min-width: 160px;
+}
+#tooltip .tt-step { color: var(--accent2); font-weight: 700; margin-bottom: 3px; }
+#tooltip .tt-row { display: flex; justify-content: space-between; gap: 14px; }
+
+/* ============ benchmarks ============ */
+.bgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.bcard { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.bcard .b-head { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+.bcard .b-title { font-weight: 700; }
+.bcard .b-sub { color: var(--muted); font-size: 11px; }
+.bcard .b-legend { text-align: right; font-size: 12px; line-height: 1.8; }
+.bcard .b-legend i.fa-circle { font-size: 7px; margin-right: 6px; }
+.bcard canvas { width: 100%; height: 150px; display: block; }
+
+/* ============ sampler ============ */
+.sampler-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.scard { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.scard h3 { font-size: 13px; margin-bottom: 10px; }
+.scard h3 i { margin-right: 8px; color: var(--accent); }
+.scard .s-sub { color: var(--muted); font-size: 11px; font-weight: 400; margin-left: 8px; }
+.feed { max-height: 330px; overflow-y: auto; font-size: 12px; }
+.feed .row { display: flex; gap: 12px; padding: 7px 4px; border-bottom: 1px solid var(--border); }
+.feed .row:last-child { border-bottom: none; }
+.feed .when { color: var(--muted); white-space: nowrap; width: 90px; }
+.feed .row b { color: var(--text); }
+.feed .row .stepnum { margin-left: auto; color: var(--muted); }
+.src-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.src-table th { text-align: left; color: var(--muted); font-weight: 400; padding: 4px 8px;
+                border-bottom: 1px solid var(--border); font-size: 11px; }
+.src-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.src-table tr:last-child td { border-bottom: none; }
+.src-table .bar { height: 5px; border-radius: 3px; background: var(--accent2); min-width: 4px; display: inline-block; vertical-align: middle; }
+.src-table .bar-track { width: 90px; height: 5px; border-radius: 3px; background: var(--panel2); display: inline-block; vertical-align: middle; }
+.src-table .num { text-align: right; }
+.src-table .cat { color: var(--muted); }
+
+/* ============ offline banner + footer ============ */
+#offlineBanner {
+    display: none; position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%);
+    z-index: 100; background: rgba(236,72,153,.12); border: 1px solid var(--bad);
+    color: var(--text); border-radius: 8px; padding: 10px 18px; font-size: 12px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.6);
+}
+#offlineBanner i { color: var(--bad); margin-right: 8px; }
+footer {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+    max-width: 1720px; margin: 0 auto; padding: 16px 24px 26px;
+    color: var(--muted); font-size: 11px; border-top: 1px solid var(--border);
+}
+footer i { color: var(--accent2); margin-right: 6px; }
+footer .f-right { display: flex; gap: 16px; align-items: center; }
+#lastUpdate { color: var(--accent); }
+
+/* about page */
+.about-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+              padding: 20px 24px; max-width: 860px; line-height: 1.9; font-size: 13px; }
+.about-card h3 { margin: 14px 0 6px; font-size: 14px; }
+.about-card h3 i { margin-right: 8px; color: var(--accent); }
+
+@media (max-width: 1200px) {
+    .mgrid, .bgrid { grid-template-columns: 1fr 1fr; }
+    .sampler-grid { grid-template-columns: 1fr; }
+    .kpis { grid-template-columns: repeat(3, 1fr); }
+    nav .clock { display: none; }
+}
+@media (max-width: 800px) {
+    .mgrid, .bgrid { grid-template-columns: 1fr; }
+    .kpis { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+    <div class="tab active" data-page="overview">overview</div>
+    <div class="tab" data-page="metrics">metrics</div>
+    <div class="tab" data-page="sampler">sampler</div>
+    <div class="tab" data-page="about">about</div>
+    <div class="spacer"></div>
+    <div class="total-cost"><div class="t-label">total cost</div><div class="t-value" id="navCost">$0</div></div>
+    <div class="clock"><div class="c-city">Beijing</div><div class="c-time" data-tz="Asia/Shanghai">—</div></div>
+    <div class="clock"><div class="c-city">Los Angeles</div><div class="c-time" data-tz="America/Los_Angeles">—</div></div>
+    <div class="clock"><div class="c-city">New York</div><div class="c-time" data-tz="America/New_York">—</div></div>
+    <div class="clock"><div class="c-city">London</div><div class="c-time" data-tz="Europe/London">—</div></div>
+</nav>
+
+<div id="tooltip"></div>
+<div id="offlineBanner">
+    <i class="fa-solid fa-plug-circle-xmark"></i>
+    Monitor server unreachable — retrying every 5 s. Start it with
+    <code>python scripts/monitor_server.py</code>
+</div>
+
+<!-- ==================== OVERVIEW ==================== -->
+<div class="page active" id="page-overview">
+
+    <div class="run-header">
+        <div class="run-line1">
+            <span class="run-name"><span class="run-dot waiting" id="runDot"></span><span id="runName">k3-edu</span></span>
+            <span class="run-status" id="runStatus">waiting for data</span>
+            <span class="run-step" id="runStep">step 0<small>/ —</small></span>
+            <div class="run-times">
+                <div>started <b id="runStarted">—</b></div>
+                <div>duration <b id="runDuration">—</b></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="kpis">
+        <div class="kpi"><div class="k-label"><i class="fa-solid fa-chart-line"></i>loss · Δ vs step 1</div>
+            <div class="k-value" id="kLoss">—</div><div class="k-delta" id="kLossD"></div></div>
+        <div class="kpi"><div class="k-label"><i class="fa-solid fa-sack-dollar"></i>cost so far</div>
+            <div class="k-value" id="kCost">$0</div><div class="k-delta" id="kCostRate"></div></div>
+        <div class="kpi"><div class="k-label"><i class="fa-solid fa-font"></i>tokens · current step</div>
+            <div class="k-value" id="kTokStep">—</div><div class="k-delta" id="kTokRate"></div></div>
+        <div class="kpi"><div class="k-label"><i class="fa-solid fa-database"></i>tokens · total</div>
+            <div class="k-value" id="kTokTotal">—</div><div class="k-delta" id="kTokEta">ETA —</div></div>
+        <div class="kpi"><div class="k-label"><i class="fa-solid fa-cubes-stacked"></i>samples trained</div>
+            <div class="k-value" id="kSamples">—</div><div class="k-delta" id="kEpoch">epoch —</div></div>
+        <div class="kpi"><div class="k-label"><i class="fa-solid fa-table-cells"></i>train batch size × n</div>
+            <div class="k-value" id="kBatch">—</div><div class="k-delta" id="kSeq">seq —</div></div>
+    </div>
+
+    <div class="sect" id="benchSect" style="display:none"><i class="fa-solid fa-flag-checkered"></i>benchmarks</div>
+    <div class="bgrid" id="benchGrid" style="display:none"></div>
+
+    <div class="sect"><i class="fa-solid fa-chart-line"></i>training curves</div>
+    <div class="controls">
+        <div class="seg" id="axisSeg">
+            <button data-axis="step" class="active">step</button>
+            <button data-axis="time">time</button>
+        </div>
+        <div class="seg" id="scaleSeg">
+            <button data-scale="linear" class="active">linear</button>
+            <button data-scale="log">log</button>
+        </div>
+        <div class="slider-wrap">smoothing
+            <input type="range" id="smoothSlider" min="0" max="99" value="60">
+            <span id="smoothVal">0.60</span>
+        </div>
+        <div class="legend">
+            <span><span class="dot" style="background:var(--accent)"></span>train loss</span>
+            <span><span class="dot" style="background:var(--accent2)"></span>val loss</span>
+            <span><span class="dot" style="background:#9aa7b5"></span>perplexity</span>
+        </div>
+    </div>
+    <div class="mgrid">
+        <div class="mcard" data-metric="loss"><div class="m-head">
+            <div class="m-title">train / loss</div><div class="m-vals" id="v-loss"></div></div>
+            <canvas id="c-loss" height="130"></canvas></div>
+        <div class="mcard" data-metric="val_loss"><div class="m-head">
+            <div class="m-title">val / loss</div><div class="m-vals" id="v-val_loss"></div></div>
+            <canvas id="c-val_loss" height="130"></canvas></div>
+        <div class="mcard" data-metric="ppl"><div class="m-head">
+            <div class="m-title">train / perplexity</div><div class="m-vals" id="v-ppl"></div></div>
+            <canvas id="c-ppl" height="130"></canvas></div>
+        <div class="mcard" data-metric="lr"><div class="m-head">
+            <div class="m-title">sched / learning_rate</div><div class="m-vals" id="v-lr"></div></div>
+            <canvas id="c-lr" height="130"></canvas></div>
+        <div class="mcard" data-metric="tokens_per_s"><div class="m-head">
+            <div class="m-title">throughput / tokens_per_s</div><div class="m-vals" id="v-tokens_per_s"></div></div>
+            <canvas id="c-tokens_per_s" height="130"></canvas></div>
+        <div class="mcard" data-metric="grad_norm"><div class="m-head">
+            <div class="m-title">optim / grad_norm</div><div class="m-vals" id="v-grad_norm"></div></div>
+            <canvas id="c-grad_norm" height="130"></canvas></div>
+    </div>
+</div>
+
+<!-- ==================== METRICS ==================== -->
+<div class="page" id="page-metrics">
+    <div class="sect"><i class="fa-solid fa-chart-line"></i>all metrics</div>
+    <div class="controls" id="mControls">
+        <div class="seg" id="axisSeg2">
+            <button data-axis="step" class="active">step</button>
+            <button data-axis="time">time</button>
+        </div>
+        <div class="seg" id="scaleSeg2">
+            <button data-scale="linear" class="active">linear</button>
+            <button data-scale="log">log</button>
+        </div>
+        <div class="slider-wrap">smoothing
+            <input type="range" id="smoothSlider2" min="0" max="99" value="60">
+            <span id="smoothVal2">0.60</span>
+        </div>
+    </div>
+    <div class="mgrid" id="metricsGrid"></div>
+</div>
+
+<!-- ==================== SAMPLER ==================== -->
+<div class="page" id="page-sampler">
+    <div class="sect"><i class="fa-solid fa-shuffle"></i>dynamic sampler · data streaming</div>
+    <div class="sampler-grid">
+        <div class="scard">
+            <h3><i class="fa-solid fa-stream"></i>feed <span class="s-sub" id="feedSub">log of sampling events</span></h3>
+            <div class="feed" id="srcFeed"><div class="row"><span class="when">—</span><span>No events yet.</span></div></div>
+        </div>
+        <div class="scard">
+            <h3><i class="fa-solid fa-layer-group"></i><span id="srcStepTitle">sources</span>
+                <span class="s-sub">accepted / target per data source</span></h3>
+            <table class="src-table">
+                <thead><tr><th>source</th><th>accepted / target</th><th></th><th class="num">judged</th><th class="num">in flight</th></tr></thead>
+                <tbody id="srcBody"><tr><td colspan="5" style="color:var(--muted)">no source data yet</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== ABOUT ==================== -->
+<div class="page" id="page-about">
+    <div class="about-card">
+        <h3><i class="fa-solid fa-circle-info"></i>what this is</h3>
+        <p>Live view of a K3-Edu training run — loss/perplexity curves, throughput, learning-rate
+        schedule, cost, hardware telemetry and per-source data streaming, updated every 2 s.</p>
+        <h3><i class="fa-solid fa-diagram-project"></i>how it works</h3>
+        <p>The C trainer appends one JSON line per step to
+        <code>runs/&lt;run&gt;/metrics.jsonl</code> (via <code>include/metrics.h</code>).
+        A stdlib-only Python server (<code>scripts/monitor_server.py</code>) tails the file with
+        byte-offset polling; this page renders it. Hardware values are really detected at
+        monitor start (<code>scripts/detect_hardware.py</code>), not assumed.</p>
+        <h3><i class="fa-solid fa-hand-pointer"></i>interactions</h3>
+        <p>Hover any chart for per-step values. The global controls switch x-axis between
+        step-wise and time-wise, y-axis between linear and log, and an EMA smoothing slider
+        (raw points always shown faintly under the smoothed line).</p>
+        <h3><i class="fa-solid fa-flask"></i>benchmarks &amp; sources</h3>
+        <p>Benchmark cards appear when the trainer emits <code>metrics_emit_benchmark()</code>;
+        the sampler page appears when it emits <code>metrics_emit_source()</code>. Both are
+        optional — a minimal run shows curves only.</p>
+    </div>
+</div>
+
+<footer>
+    <div>
+        <span><i class="fa-solid fa-rotate"></i>auto-refresh <span id="lastUpdate">never</span></span>
+        &nbsp;·&nbsp;
+        <span><i class="fa-solid fa-microchip"></i><span id="footDev">—</span></span>
+        &nbsp;·&nbsp;
+        <span><i class="fa-solid fa-server"></i>port <span id="footPort">—</span></span>
+    </div>
+    <div class="f-right">
+        <span>@K3-Edu</span>
+        <span>streaming since <span id="footSince">—</span></span>
+        <span>Open is what we value.</span>
+    </div>
+</footer>
+
+<script>
+'use strict';
+/* ================= state ================= */
+let offset = 0;
+let lines = [];
+let lossScale = 'linear';
+let lossAxis = 'step';
+let smoothW = 0.60;
+let hwStatic = null, hwDynamic = {};
+let pollIntervalMs = 2000, serverUp = true, pollTimer = null, hwTimer = null;
+const $ = id => document.getElementById(id);
+const tt = $('tooltip');
+const NA = '—';
+
+/* metrics rendered as cards; [key, label, logPreferred] */
+const METRICS = [
+    ['loss',        'train / loss',             false],
+    ['val_loss',    'val / loss',               false],
+    ['ppl',         'train / perplexity',       true],
+    ['lr',          'sched / learning_rate',    true],
+    ['tokens_per_s','throughput / tokens_per_s',false],
+    ['grad_norm',   'optim / grad_norm',        true],
+];
+
+/* ================= tabs ================= */
+document.querySelectorAll('nav .tab').forEach(t => {
+    t.addEventListener('click', () => {
+        document.querySelectorAll('nav .tab').forEach(x => x.classList.toggle('active', x === t));
+        document.querySelectorAll('.page').forEach(p =>
+            p.classList.toggle('active', p.id === 'page-' + t.dataset.page));
+        if (lines.length) { renderAll(); }
+    });
+});
+
+/* ================= world clocks ================= */
+function tickClocks() {
+    document.querySelectorAll('.clock .c-time').forEach(el => {
+        el.textContent = new Date().toLocaleTimeString('en-US',
+            { timeZone: el.dataset.tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    });
+}
+setInterval(tickClocks, 1000); tickClocks();
+
+/* ================= polling ================= */
+function setServerUp(up) {
+    if (up === serverUp) return;
+    serverUp = up;
+    $('offlineBanner').style.display = up ? 'none' : 'block';
+    pollIntervalMs = up ? 2000 : 5000;
+    restartTimers();
+}
+
+async function pollHw() {
+    try {
+        const d = await (await fetch('/api/hw')).json();
+        hwStatic = d.static || null; hwDynamic = d.dynamic || {};
+        setServerUp(true);
+    } catch (e) { setServerUp(false); }
+}
+
+async function poll() {
+    try {
+        const data = await (await fetch(`/api/metrics?after=${offset}`)).json();
+        if (data.lines && data.lines.length) {
+            lines = lines.concat(data.lines);
+            offset = data.offset;
+            renderAll();
+        }
+        const sum = await (await fetch('/api/summary')).json();
+        setLive(!sum.finished && !!sum.latest);
+        if (sum.run_dir) $('runName').textContent = sum.run_dir.split(/[\\/]/).pop();
+        setServerUp(true);
+    } catch (e) { setServerUp(false); }
+    $('lastUpdate').textContent = serverUp ? new Date().toLocaleTimeString() : 'server offline';
+}
+
+function setLive(on) {
+    const dot = $('runDot'), st = $('runStatus');
+    if (on) { dot.className = 'run-dot running'; st.textContent = 'running'; }
+    else if (lines.some(l => l.step)) { dot.className = 'run-dot stopped'; st.textContent = 'stopped'; }
+    else { dot.className = 'run-dot waiting'; st.textContent = 'waiting for data'; }
+}
+
+/* ================= formatting ================= */
+function fmtInt(n) {
+    if (n >= 1e12) return (n/1e12).toFixed(2) + 'T';
+    if (n >= 1e9) return (n/1e9).toFixed(2) + 'B';
+    if (n >= 1e6) return (n/1e6).toFixed(2) + 'M';
+    if (n >= 1e3) return (n/1e3).toFixed(1) + 'k';
+    return String(Math.round(n || 0));
+}
+function fmtMoney(n) {
+    if (n >= 1e6) return '$' + (n/1e6).toFixed(2) + 'M';
+    return '$' + Math.round(n).toLocaleString();
+}
+function fmtTime(s) {
+    if (!isFinite(s) || s <= 0) return NA;
+    const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60);
+    return d ? `${d}d ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(Math.round(s%60)).padStart(2,'0')}`
+             : `${h?h+'h ':''}${m}m ${Math.round(s%60)}s`;
+}
+function fmtNum(v, d=3) { return (v==null||isNaN(v)) ? NA : Number(v).toFixed(d); }
+function deltaHtml(d, digits=3, goodWhenUp=null) {
+    if (d == null || isNaN(d) || Math.abs(d) < 1e-12) return '';
+    const up = d > 0;
+    const cls = goodWhenUp === null ? (up?'up':'down') : (up === goodWhenUp ? 'up' : 'down');
+    return ` <span class="${cls}">${up?'▲':'▼'}${Math.abs(d).toFixed(digits)}</span>`;
+}
+function ema(vals, a) {
+    const out = []; let acc = null;
+    for (const v of vals) { acc = acc===null ? v : a*v + (1-a)*acc; out.push(acc); }
+    return out;
+}
+
+/* ================= main render ================= */
+function renderAll() {
+    const meta = lines.find(l => l.event === 'meta');
+    const steps = lines.filter(l => 'step' in l);
+    const events = lines.filter(l => l.event && l.event !== 'meta' && l.event !== 'benchmark' && l.event !== 'source');
+    const benches = lines.filter(l => l.event === 'benchmark');
+    const sources = lines.filter(l => l.event === 'source');
+    if (!steps.length) { renderSources(sources); return; }
+    const last = steps[steps.length-1], first = steps[0];
+
+    /* run header */
+    $('runStep').innerHTML = `step ${last.step.toLocaleString()}<small>/ ${last.progress>0?Math.round(last.step/last.progress).toLocaleString():'—'}</small>`;
+    $('runStarted').textContent = meta ? new Date(meta.t*1000).toLocaleString() : NA;
+    $('runDuration').textContent = fmtTime(last.elapsed_s);
+
+    /* KPI row — MiMo style: value + delta vs step 1 */
+    const d = (key) => (last[key]!=null && first[key]!=null) ? last[key]-first[key] : null;
+    $('kLoss').textContent = fmtNum(last.loss);
+    $('kLossD').innerHTML = deltaHtml(d('loss'));
+    $('kCost').textContent = fmtMoney(last.cost_usd||0);
+    $('kCostRate').textContent = (last.gpu_hourly_usd||0) ? `$${last.gpu_hourly_usd.toFixed(2)}/hr` : '';
+    $('navCost').textContent = fmtMoney(last.cost_usd||0);
+    const tokThisStep = (last.tokens||0) - (steps.length>1 ? steps[steps.length-2].tokens||0 : 0);
+    $('kTokStep').textContent = fmtInt(Math.max(0,tokThisStep));
+    $('kTokRate').textContent = fmtInt(last.tokens_per_s||0) + ' tok/s';
+    $('kTokTotal').textContent = fmtInt(last.tokens||0);
+    $('kTokEta').textContent = 'ETA ' + fmtTime(last.eta_s);
+    $('kSamples').textContent = fmtInt(last.samples||0);
+    $('kEpoch').textContent = 'epoch ' + (last.epoch ?? '—');
+    $('kBatch').textContent = (last.batch_size||'—') + ' × ' + (last.seq_len||'—');
+    $('kSeq').innerHTML = `seq ${last.seq_len||'—'} · ${fmtInt(last.tokens_per_s||0)} tok/s`;
+
+    /* benchmarks */
+    renderBenchmarks(benches, steps);
+
+    /* metric cards (overview grid + full metrics page share state) */
+    METRICS.forEach(([key]) => drawMetricCard(key, steps));
+    $('footDev').textContent = (hwStatic && hwStatic.device) || '';
+    $('footSince').textContent = meta ? new Date(meta.t*1000).toISOString().slice(0,16).replace('T',' ')+' UTC' : '—';
+
+    renderSources(sources, events, steps);
+}
+
+/* ================= benchmarks ================= */
+const BENCH_COLORS = ['#f97316', '#4f8ef7', '#22c55e', '#ec4899'];
+function renderBenchmarks(benches, steps) {
+    const grid = $('benchGrid'), sect = $('benchSect');
+    if (!benches.length) { grid.style.display='none'; sect.style.display='none'; return; }
+    grid.style.display=''; sect.style.display='';
+    const byName = {};
+    benches.forEach(b => (byName[b.name] = byName[b.name] || []).push(b));
+    // stable order
+    const names = Object.keys(byName);
+    grid.innerHTML = names.map(n =>
+        `<div class="bcard" data-b="${n}"><div class="b-head">
+            <div><div class="b-title">${n}</div><div class="b-sub">benchmark score</div></div>
+            <div class="b-legend" id="bl-${b64(n)}"></div></div>
+         <canvas id="bc-${b64(n)}" height="150"></canvas></div>`).join('');
+    names.forEach(n => drawBench(n, byName[n]));
+}
+function b64(s){ let h=0; for (const c of s) h=(h*31+c.charCodeAt(0))>>>0; return 'b'+h.toString(36); }
+
+function drawBench(name, pts) {
+    pts.sort((a,b)=>a.step-b.step);
+    const c = $('bc-'+b64(name)); if (!c) return;
+    const ctx = c.getContext('2d');
+    const wCss = c.parentElement.clientWidth - 32, hCss = 150;
+    c.width = wCss*devicePixelRatio; c.height = hCss*devicePixelRatio;
+    c.style.width = wCss+'px'; c.style.height = hCss+'px';
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+    const pad = {l:34,r:40,t:8,b:18}, W=wCss-pad.l-pad.r, H=hCss-pad.t-pad.b;
+    ctx.strokeStyle='#26262e'; ctx.strokeRect(pad.l,pad.t,W,H);
+    const xmin=pts[0].step, xmax=pts[pts.length-1].step;
+    const vals=pts.map(p=>p.score);
+    const vmin=Math.min(...vals)*0.97, vmax=Math.max(...vals)*1.02;
+    const X=s=>pad.l+(s-xmin)/((xmax-xmin)||1)*W, Y=v=>pad.t+H-(v-vmin)/((vmax-vmin)||1)*H;
+    // gridlines
+    ctx.font='10px monospace'; ctx.fillStyle='#82828e';
+    for (let i=0;i<=2;i++){ const v=vmin+(vmax-vmin)*i/2, y=Y(v);
+        ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+W,y);ctx.stroke();
+        ctx.fillText(v.toFixed(0),4,y+3); }
+    ctx.beginPath(); ctx.strokeStyle='#4f8ef7'; ctx.lineWidth=1.6;
+    pts.forEach((p,i)=> i?ctx.lineTo(X(p.step),Y(p.score)):ctx.moveTo(X(p.step),Y(p.score)));
+    ctx.stroke();
+    ctx.fillStyle='#4f8ef7';
+    pts.forEach(p=>{ctx.beginPath();ctx.arc(X(p.step),Y(p.score),2.4,0,7);ctx.fill();});
+    // latest value label
+    const lastP = pts[pts.length-1];
+    ctx.fillStyle='#e8e8ee'; ctx.font='bold 11px monospace';
+    ctx.fillText(lastP.score.toFixed(2), pad.l+W+4, Y(lastP.score)+3);
+    const lg = $('bl-'+b64(name));
+    if (lg) lg.innerHTML = `<div><i class="fa-solid fa-circle" style="color:#4f8ef7"></i>${name.slice(0,14)} <b>${lastP.score.toFixed(2)}</b></div>`;
+}
+
+/* ================= metric cards ================= */
+const cardGeoms = {};
+function drawMetricCard(key, steps) {
+    const pts = steps.filter(s => s[key] > 0);
+    const canvas = $('c-'+key);
+    if (!canvas || pts.length < 1) return;
+    // value header: latest + delta vs step 1
+    const vEl = $('v-'+key);
+    if (vEl) {
+        const lastV = pts[pts.length-1][key];
+        const firstV = pts[0][key];
+        vEl.innerHTML = `<span class="mv"><i class="fa-solid fa-circle" style="color:var(--accent)"></i><b>${fmtNum(lastV)}</b>` +
+            deltaHtml(lastV - firstV, Math.abs(lastV-firstV) < 0.01 ? 5 : 3) + '</span>';
+    }
+    if (pts.length < 2) return;
+
+    const ctx = canvas.getContext('2d');
+    const wCss = canvas.parentElement.clientWidth - 32, hCss = 130;
+    canvas.width = wCss*devicePixelRatio; canvas.height = hCss*devicePixelRatio;
+    canvas.style.width = wCss+'px'; canvas.style.height = hCss+'px';
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+    const pad = {l:44,r:10,t:6,b:16}, W=wCss-pad.l-pad.r, H=hCss-pad.t-pad.b;
+    ctx.strokeStyle='#26262e'; ctx.strokeRect(pad.l,pad.t,W,H);
+
+    const useLog = (key==='ppl'||key==='lr'||key==='grad_norm') ? true : lossScale==='log';
+    const xKey = lossAxis==='time' ? 'elapsed_s' : 'step';
+    const xs = pts.map(p=>p[xKey]);
+    const xmin=xs[0], xmax=xs[xs.length-1]||xmin+1;
+    const raw = pts.map(p=>p[key]);
+    const sm = ema(raw, 0.05+smoothW*0.94);
+    let vmin = Math.min(...raw, ...sm), vmax = Math.max(...raw, ...sm);
+    if (useLog) { vmin = Math.max(1e-6, vmin*0.8); vmax *= 1.15; }
+    else { const span=(vmax-vmin)||1; vmin-=span*0.06; vmax+=span*0.06; }
+    const X=v=>pad.l+(v-xmin)/((xmax-xmin)||1)*W;
+    const Y=v=>{
+        if (useLog){const t=(Math.log10(Math.max(v,1e-9))-Math.log10(vmin))/(Math.log10(vmax)-Math.log10(vmin)||1);return pad.t+H-t*H;}
+        return pad.t+H-(v-vmin)/((vmax-vmin)||1)*H;
+    };
+    // gridlines
+    ctx.font='9px monospace'; ctx.fillStyle='#82828e';
+    if (useLog) {
+        for (let e=Math.floor(Math.log10(vmin)); e<=Math.ceil(Math.log10(vmax)); e++) {
+            const v=Math.pow(10,e); if (v<vmin||v>vmax) continue; const y=Y(v);
+            ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+W,y);ctx.stroke();
+            ctx.fillText(v.toPrecision(2),2,y+3);
+        }
+    } else {
+        for (let i=0;i<=2;i++){const v=vmin+(vmax-vmin)*i/2,y=Y(v);
+            ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+W,y);ctx.stroke();
+            ctx.fillText(v.toPrecision(3),2,y+3);}
+    }
+    // raw faint
+    ctx.fillStyle='rgba(232,232,238,0.18)';
+    pts.forEach((p,i)=>ctx.fillRect(X(p[xKey])-1, Y(raw[i])-1, 2, 2));
+    // smoothed line
+    ctx.beginPath(); ctx.strokeStyle='var(--accent)'; ctx.strokeStyle='#00d4aa'; ctx.lineWidth=1.8;
+    pts.forEach((p,i)=> i?ctx.lineTo(X(p[xKey]),Y(sm[i])):ctx.moveTo(X(p[xKey]),Y(sm[i])));
+    ctx.stroke();
+    // endpoint dot + value
+    const lx=X(pts[pts.length-1][xKey]), ly=Y(sm[sm.length-1]);
+    ctx.fillStyle='#00d4aa'; ctx.beginPath(); ctx.arc(lx,ly,3,0,7); ctx.fill();
+    ctx.fillStyle='#e8e8ee'; ctx.font='bold 10px monospace';
+    ctx.fillText(fmtNum(sm[sm.length-1]), Math.min(lx+5, pad.l+W-38), ly-5);
+
+    cardGeoms[key] = {pts, X, Y, xKey, raw, sm, pad, W, H, ctx, wCss, hCss};
+}
+
+/* hover for all metric cards */
+Object.keys(cardGeoms).forEach(()=>{}); // geoms registered during draw
+['c-loss','c-val_loss','c-ppl','c-lr','c-tokens_per_s','c-grad_norm'].forEach(id => {
+    const cv = $(id); if (!cv) return;
+    const key = id.slice(2);
+    cv.addEventListener('mousemove', ev => {
+        const g = cardGeoms[key]; if (!g) return;
+        const rect = cv.getBoundingClientRect();
+        const mx = ev.clientX - rect.left;
+        let best=0, bd=Infinity;
+        g.pts.forEach((p,i)=>{const d=Math.abs(g.X(p[g.xKey])-mx); if(d<bd){bd=d;best=i;}});
+        const p = g.pts[best];
+        // crosshair redraw
+        drawMetricCard(key, lines.filter(l=>'step' in l));
+        const gg = cardGeoms[key]; if (!gg) return;
+        gg.ctx.strokeStyle='rgba(232,232,238,.3)'; gg.ctx.setLineDash([3,3]);
+        const cx = gg.X(p[gg.xKey]);
+        gg.ctx.beginPath(); gg.ctx.moveTo(cx, gg.pad.t); gg.ctx.lineTo(cx, gg.pad.t+gg.H); gg.ctx.stroke();
+        gg.ctx.setLineDash([]);
+        tt.innerHTML = `<div class="tt-step">step ${p.step.toLocaleString()} · ${fmtTime(p.elapsed_s)}</div>
+            <div class="tt-row"><span>loss</span><b>${fmtNum(p.loss)}</b></div>
+            ${p.val_loss>0?`<div class="tt-row"><span>val loss</span><b>${fmtNum(p.val_loss)}</b></div>`:''}
+            <div class="tt-row"><span>tokens/s</span><b>${fmtInt(p.tokens_per_s||0)}</b></div>
+            <div class="tt-row"><span>cost</span><b>$${(p.cost_usd||0).toFixed(4)}</b></div>
+            ${p.file_name?`<div class="tt-row"><span>file</span><b>${p.file_name.split(/[\\/]/).pop()}</b></div>`:''}`;
+        tt.style.display='block';
+        tt.style.left=Math.min(ev.clientX+14, innerWidth-230)+'px';
+        tt.style.top=Math.min(ev.clientY+10, innerHeight-170)+'px';
+    });
+    cv.addEventListener('mouseleave', () => {
+        tt.style.display='none';
+        if (lines.length) drawMetricCard(key, lines.filter(l=>'step' in l));
+    });
+});
+
+/* ================= sources / sampler ================= */
+const CAT_COLORS = {code:'#4f8ef7', general:'#f97316', cyber:'#22c55e', visual:'#eab308', chat:'#ec4899'};
+function renderSources(sources, events=[], steps=[]) {
+    const body = $('srcBody'), feed = $('srcFeed');
+    const hasSrc = sources.length > 0;
+    if (!hasSrc && !events.length && !steps.length) return;
+
+    if (hasSrc) {
+        // latest step snapshot, grouped by source, latest entry wins
+        const lastStep = Math.max(...sources.map(s=>s.step));
+        const bySrc = {};
+        sources.filter(s=>s.step===lastStep).forEach(s=>bySrc[s.source]=s);
+        $('srcStepTitle').textContent = `step ${lastStep}`;
+        const rows = Object.values(bySrc).sort((a,b)=> (b.accepted/(b.target||1)) - (a.accepted/(a.target||1)));
+        body.innerHTML = rows.map(s => {
+            const frac = Math.min(1, s.accepted/(s.target||1));
+            const col = CAT_COLORS[s.category] || '#4f8ef7';
+            return `<tr>
+                <td><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:8px"></span><span class="cat">${s.category}</span>/${s.source}</td>
+                <td>${s.accepted} / ${s.target}</td>
+                <td><span class="bar-track"><span class="bar" style="width:${(frac*100).toFixed(0)}%;background:${col}"></span></span></td>
+                <td class="num">${s.judged ?? '—'}</td>
+                <td class="num">${s.in_flight ?? '—'}</td></tr>`;
+        }).join('');
+    }
+
+    // feed: source events + run events + step completions, newest first
+    const rows = [];
+    sources.slice(-25).forEach(s =>
+        rows.push(`<div class="row"><span class="when">${ago(s.t)}</span><span>accepted <b>${s.accepted}/${s.target}</b> · judged ${s.judged??'—'} · in flight ${s.in_flight??'—'} · <span class="cat">${s.category}/${s.source}</span></span><span class="stepnum">step ${s.step}</span></div>`));
+    steps.filter(s=>s.checkpoint).slice(-10).forEach(s=>
+        rows.push(`<div class="row"><span class="when">${ago(s.t)}</span><span><b>checkpoint saved</b> · ${s.checkpoint.split(/[\\/]/).pop()} · ${fmtInt(s.tokens)} tok</span><span class="stepnum">step ${s.step}</span></div>`));
+    events.slice(-10).forEach(e=>
+        rows.push(`<div class="row"><span class="when">${ago(e.t)}</span><span><b>${e.event}</b>${e.detail?' — '+e.detail:''}</span></div>`));
+    if (rows.length) feed.innerHTML = rows.reverse().join('');
+}
+function ago(t) {
+    const s = Date.now()/1000 - t;
+    if (s < 90) return Math.round(s)+'s ago';
+    if (s < 5400) return Math.round(s/60)+'m ago';
+    if (s < 172800) return Math.round(s/3600)+'h ago';
+    return Math.round(s/86400)+'d ago';
+}
+
+/* ================= controls (both pages share state) ================= */
+function bindSeg(id, cb) {
+    $(id).addEventListener('click', e => {
+        const b = e.target.closest('button'); if (!b) return;
+        $(id).querySelectorAll('button').forEach(x=>x.classList.toggle('active', x===b));
+        cb(b.dataset);
+        if (lines.length) renderAll();
+    });
+}
+bindSeg('axisSeg',   d => lossAxis = d.axis);
+bindSeg('scaleSeg',  d => lossScale = d.scale);
+bindSeg('axisSeg2',  d => lossAxis = d.axis);
+bindSeg('scaleSeg2', d => lossScale = d.scale);
+[['smoothSlider','smoothVal'],['smoothSlider2','smoothVal2']].forEach(([s,v]) => {
+    $(s).addEventListener('input', e => {
+        smoothW = parseInt(e.target.value)/100;
+        $(v).textContent = smoothW.toFixed(2);
+        // keep both sliders in sync
+        ['smoothSlider','smoothSlider2'].forEach(o=>{ $(o).value = e.target.value; });
+        ['smoothVal','smoothVal2'].forEach(o=>{ $(o).textContent = smoothW.toFixed(2); });
+        if (lines.length) renderAll();
+    });
+});
+
+/* ================= timers ================= */
+function restartTimers() {
+    clearInterval(pollTimer); clearInterval(hwTimer);
+    pollTimer = setInterval(poll, pollIntervalMs);
+    hwTimer = setInterval(pollHw, pollIntervalMs);
+}
+
+/* ================= boot ================= */
+(async function boot() {
+    $('footPort').textContent = location.port || (location.protocol==='https:'?'443':'80');
+    await pollHw();
+    const s = await (await fetch('/api/summary')).json();
+    if (s.run_dir) $('runName').textContent = s.run_dir.split(/[\\/]/).pop();
+    await poll();
+    restartTimers();
+    window.addEventListener('resize', () => { if (lines.length) renderAll(); });
+})();
+</script>
+</body>
+</html>

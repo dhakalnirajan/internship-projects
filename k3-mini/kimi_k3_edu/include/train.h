@@ -23,6 +23,8 @@
 #include "config.h"
 #include "model.h"
 #include "tokenizer.h"
+#include <stdio.h>
+#include <math.h>
 
 /* ============================================================================
  * OPTIMIZER STATE (AdamW)

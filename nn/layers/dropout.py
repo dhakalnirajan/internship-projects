@@ -26,10 +26,11 @@ class Dropout(Layer):
             inputs_data = np.array(inputs)
         
         if self.training:
-            self.mask = np.random.binomial(1, 1 - self.rate, size=inputs_data.shape) / (1 - self.rate)
-            return Tensor(inputs_data * self.mask, requires_grad=False)
+            self.mask = (np.random.rand(*inputs_data.shape) >= self.rate) / (1.0 - self.rate)
+            out = inputs * self.mask
+            return out
         else:
-            return Tensor(inputs_data, requires_grad=False)
+            return inputs
 
     def backward(self, grad_output):
         # Ensure grad_output is numpy array

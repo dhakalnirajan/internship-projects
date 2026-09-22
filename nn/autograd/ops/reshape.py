@@ -6,6 +6,8 @@ class Reshape(Function):
     def forward(ctx, a, shape):
         ctx.save_for_backward(a)
         ctx.original_shape = a.shape
+        if shape == ():
+            return a.reshape(1)[0]  # scalar
         return a.reshape(shape)
     @staticmethod
     def backward(ctx, grad_output):

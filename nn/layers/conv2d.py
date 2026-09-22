@@ -39,16 +39,16 @@ class _Conv2DFunction(Function):
         out_h = (H + 2*ph - kh) // sy + 1
         out_w = (W + 2*pw - kw) // sx + 1
 
-        # im2col: Extract sliding local regions (patches) for efficient matrix multiplication
-        patches = np.zeros((N, kh*kw*C, out_h*out_w), dtype=x.dtype)
-        for n in range(N):
-            idx = 0
-            for i in range(0, out_h):
-                for j in range(0, out_w):
-                    patch = x_pad[n, i*sy:i*sy+kh, j*sx:j*sx+kw, :]
-                    patches[n, :, idx] = patch.ravel()
-                    idx += 1
+        # im2col (vectorized): gather all sliding windows at once with strided view + fancy indexing
+        i0 = np.repeat(np.arange(kh), kw)          # kernel row offsets
+        j0 = np.tile(np.arange(kw), kh)            # kernel col offsets
+        r_idx = (np.repeat(np.arange(out_h) * sy, out_w))[:, None] + i0[None, :]   # (L, kh*kw)
+        c_idx = (np.tile(np.arange(out_w) * sx, out_h))[:, None] + j0[None, :]    # (L, kh*kw)
+        # patches: (N, kh*kw*C, L)
+        patches = x_pad[:, r_idx, c_idx, :].transpose(0, 2, 3, 1).reshape(N, kh*kw*C, out_h*out_w)
         ctx.patches = patches
+        ctx.r_idx = r_idx
+        ctx.c_idx = c_idx
 
         # Convolve: Apply cross-correlation via matrix multiplication across multiple input channels & filters
         # y_i = B_i + sum_{j=1}^{n} x_j * K_{ij}
@@ -67,6 +67,7 @@ class _Conv2DFunction(Function):
         kh, kw, C, F = ctx.kernel_shape
         N, H, W, C = ctx.input_shape
         patches = ctx.patches
+        r_idx, c_idx = ctx.r_idx, ctx.c_idx
         out_h, out_w = grad_output.shape[1:3]
 
         # Gradient with respect to bias: sum over batch and spatial dimensions
@@ -86,14 +87,15 @@ class _Conv2DFunction(Function):
             grad_patches[n] = kernel_flat.T @ grad_flat[n]  # (K, L)
 
         # Scatter patch gradients back into the full input gradient tensor (accounting for stride and padding)
+        # col2im (vectorized): scatter all windows at once via fancy indexing + np.add.at
         grad_input = np.zeros((N, H + 2*ph, W + 2*pw, C), dtype=grad_output.dtype)
-        for n in range(N):
-            idx = 0
-            for i in range(0, out_h):
-                for j in range(0, out_w):
-                    patch = grad_patches[n, :, idx].reshape(kh, kw, C)
-                    grad_input[n, i*sy:i*sy+kh, j*sx:j*sx+kw, :] += patch
-                    idx += 1
+        # grad_patches: (N, kh*kw*C, L) -> (N, L, kh*kw, C)
+        grad_windows = grad_patches.reshape(N, kh*kw, C, out_h*out_w).transpose(0, 3, 1, 2)
+        rows = np.broadcast_to(r_idx[None, :, :, None], grad_windows.shape)  # (N, L, kh*kw, C)
+        cols = np.broadcast_to(c_idx[None, :, :, None], grad_windows.shape)
+        ch_idx = np.broadcast_to(np.arange(C)[None, None, None, :], grad_windows.shape)
+        n_idx = np.arange(N)[:, None, None, None]
+        np.add.at(grad_input, (n_idx, rows, cols, ch_idx), grad_windows)
         if ph > 0 or pw > 0:
             grad_input = grad_input[:, ph:-ph if ph>0 else None, pw:-pw if pw>0 else None, :]
 

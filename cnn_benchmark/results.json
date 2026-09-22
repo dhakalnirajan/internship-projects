@@ -1,0 +1,162 @@
+[
+  {
+    "model": "LeNet-5",
+    "params": 0,
+    "build_s": 0.49,
+    "train_s": 3.39,
+    "final_loss": 2.0611107409000398,
+    "val_acc": 0.736,
+    "test_acc": 0.6855,
+    "history": {
+      "loss": [
+        2.0611107409000398
+      ],
+      "acc": [
+        0.7595
+      ],
+      "val_acc": [
+        0.736
+      ]
+    }
+  },
+  {
+    "model": "AlexNet-mini",
+    "params": 0,
+    "build_s": 0.04,
+    "train_s": 53.1,
+    "final_loss": 2.41302090883255,
+    "val_acc": 0.7755,
+    "test_acc": 0.7215,
+    "history": {
+      "loss": [
+        2.41302090883255
+      ],
+      "acc": [
+        0.8395
+      ],
+      "val_acc": [
+        0.7755
+      ]
+    }
+  },
+  {
+    "model": "VGG16-mini",
+    "params": 0,
+    "build_s": 0.02,
+    "train_s": 54.98,
+    "final_loss": 16.361812432607014,
+    "val_acc": 0.096,
+    "test_acc": 0.097,
+    "history": {
+      "loss": [
+        16.361812432607014
+      ],
+      "acc": [
+        0.105
+      ],
+      "val_acc": [
+        0.096
+      ]
+    }
+  },
+  {
+    "model": "ResNet18-mini",
+    "params": 0,
+    "build_s": 0.02,
+    "train_s": 29.61,
+    "final_loss": 10.126275634765625,
+    "val_acc": 0.1335,
+    "test_acc": 0.1505,
+    "history": {
+      "loss": [
+        10.126275634765625
+      ],
+      "acc": [
+        0.131
+      ],
+      "val_acc": [
+        0.1335
+      ]
+    }
+  },
+  {
+    "model": "GoogLeNet-mini",
+    "params": 0,
+    "build_s": 0.02,
+    "train_s": 49.34,
+    "final_loss": 1.9133451739947,
+    "val_acc": 0.698,
+    "test_acc": 0.6465,
+    "history": {
+      "loss": [
+        1.9133451739947
+      ],
+      "acc": [
+        0.724
+      ],
+      "val_acc": [
+        0.698
+      ]
+    }
+  },
+  {
+    "model": "DenseNet-mini",
+    "params": 0,
+    "build_s": 0.02,
+    "train_s": 143.83,
+    "final_loss": 4.015661517779033,
+    "val_acc": 0.133,
+    "test_acc": 0.14,
+    "history": {
+      "loss": [
+        4.015661517779033
+      ],
+      "acc": [
+        0.097
+      ],
+      "val_acc": [
+        0.133
+      ]
+    }
+  },
+  {
+    "model": "SqueezeNet-mini",
+    "params": 0,
+    "build_s": 0.95,
+    "train_s": 34.04,
+    "final_loss": 2.2962156931559243,
+    "val_acc": 0.124,
+    "test_acc": 0.1,
+    "history": {
+      "loss": [
+        2.2962156931559243
+      ],
+      "acc": [
+        0.128
+      ],
+      "val_acc": [
+        0.124
+      ]
+    }
+  },
+  {
+    "model": "MobileNetV1-mini",
+    "params": 0,
+    "build_s": 1.42,
+    "train_s": 21.02,
+    "final_loss": 7.881129860877991,
+    "val_acc": 0.4805,
+    "test_acc": 0.4635,
+    "history": {
+      "loss": [
+        7.881129860877991
+      ],
+      "acc": [
+        0.5145
+      ],
+      "val_acc": [
+        0.4805
+      ]
+    }
+  }
+]

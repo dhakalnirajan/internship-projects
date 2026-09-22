@@ -8,6 +8,7 @@ from .exp import Exp
 from .log import Log
 from .sum import Sum
 from .reshape import Reshape
+from .concat import Concat, concat
 from .transpose import Transpose
 from .max import Max
 from .max_reduce import MaxReduce

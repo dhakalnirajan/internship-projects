@@ -110,7 +110,15 @@ class Tensor:
                     n *= self.data.shape[ax]
             else:
                 n = 1
-        result = s / n
+        result = s / float(n)  # keep as Tensor for autograd
+        if axis is None:
+            # collapse to a true numpy scalar so it works with numpy ops,
+            # while preserving the autograd chain (ctx/grad_fn)
+            out = Tensor(0.0, requires_grad=result.requires_grad,
+                         grad_fn=result.grad_fn)
+            out.data = np.float32(result.data)
+            out._ctx = result._ctx
+            result = out
         if not keepdims and axis is not None:
             out_shape = list(result.shape)
             if isinstance(axis, int):

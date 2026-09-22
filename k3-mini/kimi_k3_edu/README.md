@@ -112,6 +112,31 @@ kimi_k3_edu/
 └── checkpoints/      # Saved models
 ```
 
+## Live Training Dashboard
+
+While training runs, watch loss/perplexity curves, throughput, cost, ETA, GPU gauges and checkpoint events live in the browser:
+
+```bash
+python scripts/monitor_server.py    # http://localhost:8000 (starts with training)
+```
+
+See `web/MONITOR.md` for details.
+
+## Inference
+
+```bash
+cd k3_infer
+make
+./k3_infer                    # TUI mode
+./k3_infer -p "Explain KDA"   # One-shot CLI
+```
+
+## Documentation
+
+- [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md) — complete project summary: architecture specs, file structure, training pipeline, usage workflow
+- [DOCUMENTATION.md](DOCUMENTATION.md) — deep technical documentation: KDA/AttnRes internals, CUDA kernels, hyperparameter guide, troubleshooting
+- [web/MONITOR.md](web/MONITOR.md) — live training dashboard
+
 ## License
 
 MIT License - Educational use only.

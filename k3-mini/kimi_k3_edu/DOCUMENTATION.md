@@ -10,8 +10,6 @@
 6. [Hyperparameter Guide](#hyperparameter-guide)
 7. [Troubleshooting](#troubleshooting)
 
----
-
 ## Architecture Deep Dive
 
 ### Kimi Delta Attention (KDA)
@@ -78,8 +76,6 @@ Where `silu(x) = x * sigmoid(x)`
 
 **Implementation:** `src/model.c` - `ffn_forward()`
 
----
-
 ## Training Pipeline
 
 ### Phase 1: Base Pretraining
@@ -94,25 +90,24 @@ Where `silu(x) = x * sigmoid(x)`
 
 **Hyperparameters:**
 
-```
-Peak LR:        3e-4
-Warmup:         2,000 steps
-Total steps:    150,000
-Batch size:     4-8 (auto-detected)
-Grad accum:     1-8 (target: 32K tokens)
-Weight decay:   0.1 (excl. biases/norms)
-Dropout:        0.1
-Grad clip:      1.0
-```
+| Hyperparameter | Value |
+|---|---|
+| Peak LR | 3e-4 |
+| Warmup | 2,000 steps |
+| Total steps | 150,000 |
+| Batch size | 4-8 (auto-detected) |
+| Grad accum | 1-8 (target: 32K tokens) |
+| Weight decay | 0.1 (excl. biases/norms) |
+| Dropout | 0.1 |
+| Grad clip | 1.0 |
 
 **LR Schedule:**
 
-```
-Step 0-2K:      Linear warmup 1e-5 -> 1e-3
-Step 2K-50K:    Cosine decay 1e-3 -> 5e-4
-Step 50K-150K:  Cosine + warm restarts 5e-4 -> 1e-5
-                (3 restarts, period doubles each time)
-```
+| Steps | Schedule | LR range |
+|---|---|---|
+| 0 - 2K | Linear warmup | 1e-5 → 1e-3 |
+| 2K - 50K | Cosine decay | 1e-3 → 5e-4 |
+| 50K - 150K | Cosine + 3 warm restarts (period doubles each time) | 5e-4 → 1e-5 |
 
 **Why 2-5GB is the sweet spot for 200M params:**
 
@@ -134,32 +129,30 @@ Step 50K-150K:  Cosine + warm restarts 5e-4 -> 1e-5
 
 ```
 <|im_start|>system
-You are a helpful assistant.}
+You are a helpful assistant.
 <|im_start|>user
-What is the capital of France?}
+What is the capital of France?
 <|im_start|>assistant
-The capital of France is Paris.}
+The capital of France is Paris.
 ```
 
 **Hyperparameters:**
 
-```
-Peak LR:        1e-5
-Min LR:         1e-6
-Warmup:         500 steps
-Total steps:    30,000 (20% of base training)
-Batch size:     2
-Weight decay:   0.01
-Dropout:        0.05
-```
+| Hyperparameter | Value |
+|---|---|
+| Peak LR | 1e-5 |
+| Min LR | 1e-6 |
+| Warmup | 500 steps |
+| Total steps | 30,000 (20% of base training) |
+| Batch size | 2 |
+| Weight decay | 0.01 |
+| Dropout | 0.05 |
 
 **Key difference from base training:**
 
 - Only compute loss on assistant responses
 - Mask user/system tokens in loss computation
 - Lower learning rate to preserve base knowledge
-
----
 
 ## Inference Engine
 
@@ -209,8 +202,6 @@ With cache:    O(seq_len) per token
 - Append new K,V after each forward pass
 - Clear cache between conversations
 
----
-
 ## CUDA Kernels
 
 ### Attention Kernels
@@ -239,8 +230,6 @@ With cache:    O(seq_len) per token
 
 - For multi-head attention
 - 3D grid: (N, M, batch)
-
----
 
 ## Dataset Format
 
@@ -273,17 +262,15 @@ Files contain multiple samples separated by:
 
 ```
 <|im_start|>system
-You are a helpful coding assistant.}
+You are a helpful coding assistant.
 <|im_start|>user
-Write a Python function to calculate factorial.}
+Write a Python function to calculate factorial.
 <|im_start|>assistant
 def factorial(n):
     if n <= 1:
         return 1
-    return n * factorial(n - 1)}
+    return n * factorial(n - 1)
 ```
-
----
 
 ## Hyperparameter Guide
 
@@ -317,8 +304,6 @@ def factorial(n):
 4. Add more diverse data
 5. Use early stopping (plateau detection)
 6. Reduce learning rate
-
----
 
 ## Troubleshooting
 

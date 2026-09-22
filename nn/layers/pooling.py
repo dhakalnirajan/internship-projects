@@ -3,115 +3,96 @@ from ..autograd import Function, Tensor
 from .base import Layer
 
 
+def _windows(x, ph, pw, sh, sw):
+    """Gather pooling windows as array of shape (N, C, out_h, out_w, ph, pw)."""
+    N, H, W, C = x.shape
+    out_h = (H - ph) // sh + 1
+    out_w = (W - pw) // sw + 1
+    r = np.arange(out_h) * sh
+    c = np.arange(out_w) * sw
+    rows = r[:, None] + np.arange(ph)[None, :]               # (out_h, ph)
+    cols = c[:, None] + np.arange(pw)[None, :]               # (out_w, pw)
+    win = x[:, rows[:, None, :, None], cols[None, :, None, :], :]
+    # current shape: (N, out_h, out_w, ph, pw, C)
+    return win.transpose(0, 5, 1, 2, 3, 4), out_h, out_w
+
+
 class _MaxPooling2DFunction(Function):
     @staticmethod
     def forward(ctx, x, pool_size, strides):
-        N, H, W, C = x.shape
         ph, pw = pool_size
         sh, sw = strides
+        win, out_h, out_w = _windows(x, ph, pw, sh, sw)
 
-        out_h = (H - ph) // sh + 1
-        out_w = (W - pw) // sw + 1
-
-        out = np.zeros((N, out_h, out_w, C), dtype=x.dtype)
-        max_indices = np.zeros((N, out_h, out_w, C, 2), dtype=int)
-
-        for n in range(N):
-            for c in range(C):
-                for i in range(out_h):
-                    for j in range(out_w):
-                        h_start = i * sh
-                        h_end = h_start + ph
-                        w_start = j * sw
-                        w_end = w_start + pw
-
-                        patch = x[n, h_start:h_end, w_start:w_end, c]
-                        out[n, i, j, c] = np.max(patch)
-                        
-                        max_idx = np.argmax(patch)
-                        local_h, local_w = divmod(max_idx, pw)
-                        max_indices[n, i, j, c] = [h_start + local_h, w_start + local_w]
+        out = win.max(axis=(4, 5))  # (N, C, out_h, out_w)
+        out = out.transpose(0, 2, 3, 1)  # -> NHWC
+        win_flat = win.reshape(win.shape[:4] + (-1,))
+        max_idx = win_flat.argmax(axis=-1)  # (N, C, out_h, out_w)
+        ph_idx, pw_idx = np.unravel_index(max_idx.ravel(), (ph, pw))
+        ph_idx = ph_idx.reshape(max_idx.shape)
+        pw_idx = pw_idx.reshape(max_idx.shape)
 
         ctx.save_for_backward(x)
-        ctx.max_indices = max_indices
         ctx.pool_size = pool_size
         ctx.strides = strides
         ctx.input_shape = x.shape
+        ctx.out_shape = (out_h, out_w)
+        ctx.max_positions = (ph_idx, pw_idx)
         return out
 
     @staticmethod
     def backward(ctx, grad_output):
         x, = ctx.saved_tensors
-        max_indices = ctx.max_indices
+        ph, pw = ctx.pool_size
+        sh, sw = ctx.strides
+        out_h, out_w = ctx.out_shape
+        ph_idx, pw_idx = ctx.max_positions
         N, H, W, C = ctx.input_shape
-        out_h, out_w = grad_output.shape[1:3]
 
         grad_input = np.zeros_like(x, dtype=grad_output.dtype)
-
-        for n in range(N):
-            for c in range(C):
-                for i in range(out_h):
-                    for j in range(out_w):
-                        h_idx, w_idx = max_indices[n, i, j, c]
-                        grad_input[n, h_idx, w_idx, c] += grad_output[n, i, j, c]
-
+        # positions of the max element for each window
+        go = np.asarray(grad_output.data if hasattr(grad_output, 'data') else grad_output)
+        go = go.transpose(0, 3, 1, 2)  # NHWC -> (N, C, out_h, out_w)
+        rows = np.arange(out_h)[None, None, :, None] * sh + ph_idx   # (N, C, out_h, out_w)
+        cols = np.arange(out_w)[None, None, None, :] * sw + pw_idx   # (N, C, out_h, out_w)
+        n_idx = np.broadcast_to(np.arange(N)[:, None, None, None], rows.shape)
+        c_idx = np.broadcast_to(np.arange(C)[None, :, None, None], rows.shape)
+        np.add.at(grad_input, (n_idx, rows, cols, c_idx), go)
         return grad_input, None, None
 
 
 class _AveragePooling2DFunction(Function):
     @staticmethod
     def forward(ctx, x, pool_size, strides):
-        N, H, W, C = x.shape
         ph, pw = pool_size
         sh, sw = strides
+        win, out_h, out_w = _windows(x, ph, pw, sh, sw)
 
-        out_h = (H - ph) // sh + 1
-        out_w = (W - pw) // sw + 1
-
-        out = np.zeros((N, out_h, out_w, C), dtype=x.dtype)
-
-        for n in range(N):
-            for c in range(C):
-                for i in range(out_h):
-                    for j in range(out_w):
-                        h_start = i * sh
-                        h_end = h_start + ph
-                        w_start = j * sw
-                        w_end = w_start + pw
-
-                        patch = x[n, h_start:h_end, w_start:w_end, c]
-                        out[n, i, j, c] = np.mean(patch)
+        out = win.mean(axis=(4, 5))  # (N, C, out_h, out_w)
+        out = out.transpose(0, 2, 3, 1)  # -> NHWC
 
         ctx.save_for_backward(x)
         ctx.pool_size = pool_size
         ctx.strides = strides
         ctx.input_shape = x.shape
+        ctx.out_shape = (out_h, out_w)
         return out
 
     @staticmethod
     def backward(ctx, grad_output):
         x, = ctx.saved_tensors
-        pool_size = ctx.pool_size
-        strides = ctx.strides
+        ph, pw = ctx.pool_size
+        sh, sw = ctx.strides
+        out_h, out_w = ctx.out_shape
         N, H, W, C = ctx.input_shape
-        ph, pw = pool_size
-        sh, sw = strides
-        out_h, out_w = grad_output.shape[1:3]
 
         grad_input = np.zeros_like(x, dtype=grad_output.dtype)
         pool_area = ph * pw
-
-        for n in range(N):
-            for c in range(C):
-                for i in range(out_h):
-                    for j in range(out_w):
-                        h_start = i * sh
-                        h_end = h_start + ph
-                        w_start = j * sw
-                        w_end = w_start + pw
-
-                        grad_input[n, h_start:h_end, w_start:w_end, c] += grad_output[n, i, j, c] / pool_area
-
+        go = np.asarray(grad_output.data if hasattr(grad_output, 'data') else grad_output)
+        for i in range(out_h):
+            for j in range(out_w):
+                gi_slice = go[:, i, j, :][:, None, None, :] / pool_area
+                grad_input[:, i*sh:i*sh+ph, j*sw:j*sw+pw, :] += gi_slice
         return grad_input, None, None
 
 
@@ -120,12 +101,15 @@ class MaxPooling2D(Layer):
         super().__init__()
         self.pool_size = pool_size
         self.strides = strides
+        self._ctx = None
 
     def forward(self, inputs):
         input_data = inputs.data if hasattr(inputs, 'data') else inputs
         out_tensor = _MaxPooling2DFunction.apply(input_data, self.pool_size, self.strides)
         if hasattr(inputs, 'requires_grad') and inputs.requires_grad:
             out_tensor.requires_grad = True
+        if out_tensor._ctx is not None:
+            self._ctx = out_tensor._ctx
         return out_tensor
 
     def backward(self, grad_output):
@@ -146,12 +130,15 @@ class AveragePooling2D(Layer):
         super().__init__()
         self.pool_size = pool_size
         self.strides = strides
+        self._ctx = None
 
     def forward(self, inputs):
         input_data = inputs.data if hasattr(inputs, 'data') else inputs
         out_tensor = _AveragePooling2DFunction.apply(input_data, self.pool_size, self.strides)
         if hasattr(inputs, 'requires_grad') and inputs.requires_grad:
             out_tensor.requires_grad = True
+        if out_tensor._ctx is not None:
+            self._ctx = out_tensor._ctx
         return out_tensor
 
     def backward(self, grad_output):
