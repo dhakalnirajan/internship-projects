@@ -57,25 +57,24 @@ def check_conv2d():
 def check_pooling():
     rng = np.random.default_rng(1)
     for name, cls in [("maxpool", MaxPooling2D), ("avgpool", AveragePooling2D)]:
-        layer = cls((2, 2), (2, 2))
         x = rng.normal(size=(2, 6, 6, 2)).astype(np.float32)
+
+        # weighted-sum objective whose weights differ per output position,
+        # so any positional mix-up in the backward shows up as a large error
+        w = rng.normal(size=(2, 3, 3, 2)).astype(np.float32)
 
         def loss():
             from nn.layers.pooling import _MaxPooling2DFunction, _AveragePooling2DFunction
             fn = _MaxPooling2DFunction if name == "maxpool" else _AveragePooling2DFunction
             out = fn.apply(x, (2, 2), (2, 2))
-            w = np.arange(out.data.size, dtype=np.float32).reshape(out.data.shape)
             return float((out.data * w).sum())
 
-        out = (MaxPooling2D((2, 2), (2, 2)).forward(Tensor(x)) if name == "maxpool"
-               else AveragePooling2D((2, 2), (2, 2)).forward(Tensor(x)))
-        # need ctx from apply-based forward
         from nn.layers.pooling import _MaxPooling2DFunction, _AveragePooling2DFunction
         F = _MaxPooling2DFunction if name == "maxpool" else _AveragePooling2DFunction
         from nn.autograd.function import Context
         ctx = Context()
         o = F.forward(ctx, x, (2, 2), (2, 2))
-        gin, _, _ = F.backward(ctx, np.ones_like(o))
+        gin, _, _ = F.backward(ctx, w)
         gx_num = num_grad(loss, x)
         denom = max(np.abs(gx_num).max(), np.abs(gin).max(), 1e-8)
         print(f"{name}  dx rel_err:", np.abs(gx_num - gin).max() / denom)

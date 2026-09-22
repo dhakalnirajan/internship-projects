@@ -25,7 +25,10 @@ CHANCE_LEVEL = 0.10  # 10 balanced digit classes
 
 MODEL_IDEAS = {
     "LeNet-5": "the original 1998 CNN (conv -> pool -> fully-connected)",
+    "LeNet-5-full": "the original 1998 CNN (conv -> pool -> fully-connected)",
     "AlexNet-mini": "big convs + dropout fully-connected head",
+    "AlexNet-mirror": "five conv layers + dropout fully-connected head",
+    "MNIST-CNN": "compact two-block conv-BN-pool network for MNIST",
     "VGG16-mini": "stacked 3x3 convs, channels double while pooling halves",
     "ResNet18-mini": "residual blocks with shortcut connections",
     "GoogLeNet-mini": "inception modules (parallel 1x1 / 3x3 / pool branches)",
@@ -416,11 +419,20 @@ def _traces(ranked):
 
 
 def _caveats(ranked):
-    lines = [
-        "- **From scratch, not pretrained:** ImageNet weights exist only in "
-        "PyTorch/TF formats and cannot be loaded into a pure-NumPy autograd "
-        "engine, so every architecture trains from random init; the comparison is "
-        "about architectural *patterns*, not pretrained accuracy.",
+    lines = []
+    pretrained = any(r.get("weights_source") for r in ranked)
+    if pretrained:
+        lines.append(
+            "- **Loaded weights, not trained in nn:** the nn models here did not "
+            "train — their parameters were converted from a PyTorch state_dict "
+            "(torch OIHW -> nn HWIO, transposed Linear, and the flatten-order "
+            "permutation) and evaluated inference-only.")
+    else:
+        lines.append(
+            "- **From scratch, not pretrained:** ImageNet weights exist only in "
+            "PyTorch/TF formats and cannot be loaded into a pure-NumPy autograd "
+            "engine, so every architecture trains from random init; the comparison is "
+            "about architectural *patterns*, not pretrained accuracy.")
         f"- **Chance level is {_pct(CHANCE_LEVEL)}** (10 balanced digit classes) — "
         "anything near it did not learn at these settings.",
     ]
@@ -554,6 +566,72 @@ def _confusion_block(r):
     return "; ".join(txt).capitalize() + ".\n\n" + _md_table(headers, rows)
 
 
+def _framework(r):
+    """Framework tag from a result dict: 'nn' | 'PyTorch' | None."""
+    m = r.get("model", "")
+    if "PyTorch twin" in m or m.startswith("tv-"):
+        return "PyTorch"
+    if "loaded weights" in m or "weights_source" in r:
+        return "nn"
+    return None
+
+
+def _cross_framework(ranked):
+    """Conditional nn-vs-PyTorch comparison. Only renders when results mix
+    frameworks (the pretrained / pytorch modes); None otherwise."""
+    tagged = [r for r in ranked if _framework(r)]
+    if not tagged:
+        return None
+    nn_rows = {}
+    torch_rows = {}
+    for r in tagged:
+        base = r["model"]
+        for tag in (" (nn, loaded weights)", " (PyTorch twin)"):
+            base = base.replace(tag, "")
+        d = {"lat_ms": r.get("lat_ms"), "imgs_s": r.get("imgs_s"),
+             "test_acc": r.get("test_acc"), "params": r.get("params")}
+        if "PyTorch twin" in r["model"]:
+            torch_rows[base] = d
+        else:
+            nn_rows[base] = d
+
+    lines = ["Same weights, two engines. The PyTorch twin was trained (or the "
+             "weights downloaded); its state_dict was converted and loaded into "
+             "the pure-NumPy nn implementation, then both were measured on the "
+             "identical test data with the identical latency protocol."]
+    shared = sorted(set(nn_rows) & set(torch_rows))
+    rows = []
+    for name in shared:
+        n, t = nn_rows[name], torch_rows[name]
+        acc_check = ("identical" if n["test_acc"] == t["test_acc"]
+                     else f"{_pp(n['test_acc'] - t['test_acc'])}")
+        speed = None
+        if n["lat_ms"] and t["lat_ms"]:
+            speed = f"{n['lat_ms'] / t['lat_ms']:.1f}x slower"
+        rows.append([name,
+                     f"{n['test_acc']:.4f}" if n["test_acc"] is not None else "&mdash;",
+                     acc_check,
+                     f"{n['lat_ms']:.2f}" if n["lat_ms"] else "&mdash;",
+                     f"{t['lat_ms']:.2f}" if t["lat_ms"] else "&mdash;",
+                     speed or "&mdash;"])
+    if rows:
+        lines.append("\n" + _md_table(
+            ["Model", "nn acc", "acc match", "nn (ms/img)",
+             "PyTorch (ms/img)", "Speed gap"], rows))
+
+    # torchvision pretrained reference block (ImageNet; accuracy not comparable)
+    tv = [r for r in tagged if r["model"].startswith("tv-")]
+    if tv:
+        lines.append("\n**torchvision pretrained reference (ImageNet):** inference "
+                     "speed only — these models carry ImageNet weights and their "
+                     "accuracy is not MNIST-comparable.\n")
+        lines.append(_md_table(
+            ["Model", "Params", "Latency (ms)", "Throughput (img/s)", "Input"],
+            [[r["model"], f"{r['params']:,}", f"{r['lat_ms']:.2f}",
+              f"{r['imgs_s']:,.0f}", r.get("input", "&mdash;")] for r in tv]))
+    return "\n".join(lines) + "\n"
+
+
 def _per_model_detail(ranked):
     """Per-model accuracy trend + confusion matrix; None if neither exists."""
     blocks = []
@@ -631,6 +709,9 @@ def generate_report(results, settings=None, assets_dir=None,
     detail = _per_model_detail(ranked)
     if detail:
         sections.append(("Per-model confusion and accuracy trends", detail))
+    cross = _cross_framework(ranked)
+    if cross:
+        sections.append(("nn versus PyTorch (loaded weights)", cross))
     sections.append(("Notes and caveats", _caveats(ranked)))
     sections.append(("Artifacts", _artifacts(out_path, assets_dir)))
 

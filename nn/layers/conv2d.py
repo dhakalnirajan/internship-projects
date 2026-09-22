@@ -52,7 +52,9 @@ class _Conv2DFunction(Function):
 
         # Convolve: Apply cross-correlation via matrix multiplication across multiple input channels & filters
         # y_i = B_i + sum_{j=1}^{n} x_j * K_{ij}
-        kernel_flat = kernel.reshape(F, -1)          # (F, kh*kw*C)
+        # NOTE: kernel is (kh, kw, C, F) with F LAST in memory; reshape(F, -1)
+        # directly would scramble filter/channel order. Flatten as (F, kh, kw, C).
+        kernel_flat = kernel.transpose(3, 0, 1, 2).reshape(F, -1)   # (F, kh*kw*C)
         out_flat = np.einsum('fk,nkw->nfw', kernel_flat, patches)  # (N, F, L)
         out_flat += bias.reshape(1, F, 1)            # Add bias terms per filter
         out = out_flat.reshape(N, F, out_h, out_w).transpose(0, 2, 3, 1)  # (N, out_h, out_w, F)
@@ -78,10 +80,11 @@ class _Conv2DFunction(Function):
         dkernel = np.zeros((F, kh * kw * C), dtype=grad_output.dtype)
         for n in range(N):
             dkernel += grad_flat[n] @ patches[n].T
-        dkernel = dkernel.reshape(kh, kw, C, F)
+        # dkernel rows are (F, kh*kw*C) with flat order kh, kw, C -> back to (kh, kw, C, F)
+        dkernel = dkernel.reshape(F, kh, kw, C).transpose(1, 2, 3, 0)
 
         # Gradient with respect to input (col2im): backpropagate gradients into patches
-        kernel_flat = kernel.reshape(F, -1)  # (F, K)
+        kernel_flat = kernel.transpose(3, 0, 1, 2).reshape(F, -1)  # (F, K)
         grad_patches = np.zeros((N, kh * kw * C, out_h * out_w), dtype=grad_output.dtype)
         for n in range(N):
             grad_patches[n] = kernel_flat.T @ grad_flat[n]  # (K, L)

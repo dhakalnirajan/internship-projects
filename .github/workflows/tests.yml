@@ -1,0 +1,46 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  numpy-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy matplotlib pandas scikit-learn pytest
+      - name: Download MNIST (used by a couple of tests)
+        run: python -c "import urllib.request; urllib.request.urlretrieve('https://s3.amazonaws.com/img-datasets/mnist.npz', 'mnist.npz')"
+      - name: Gradient checks (conv2d + pooling)
+        run: python -m cnn_benchmark.grad_check
+      - name: Pytest suite (pure-NumPy + report conditionals)
+        run: python -m pytest cnn_benchmark/test_benchmark.py -q -x
+
+  torch-bridge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps (incl. torch CPU + torchvision)
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy pytest
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      - name: Pytest suite incl. torch bridge + weight conversion
+        run: python -m pytest cnn_benchmark/test_benchmark.py -q -x
+      - name: Smoke pretrained mode end-to-end
+        run: python -m cnn_benchmark.run_benchmark --smoke --mode pretrained
+      - name: Smoke pytorch mode end-to-end
+        run: python -m cnn_benchmark.run_benchmark --smoke --mode pytorch
