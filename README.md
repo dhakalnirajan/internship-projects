@@ -50,7 +50,13 @@ This repository contains the source code for the projects completed during my in
 4. **Data Structures in C** (`data_structures/`)
    Implementations of a B+ tree (`bplus_tree.c`) and a B-tree (`btree.c`).
 
-5. **Kimi K3 Mini Transformer** (`k3-mini/`)
+5. **Autism Emotion Recognition — Thesis Project** (ongoing)
+   An ongoing thesis project under my supervisor, working on emotion
+   recognition for autism. The accompanying dataset is included in this
+   repository (`Autism emotion recogition dataset.zip`); work on it is
+   ongoing and code/results will land here as they mature.
+
+6. **Kimi K3 Mini Transformer** (`k3-mini/`)
    A dense transformer (Kimi K3) implemented in C, with an educational
    variant (`kimi_k3_edu`) that includes a live training monitor
    (metrics server + web dashboard) and hardware detection utilities.

@@ -55,6 +55,9 @@ datasets/train/
 datasets/val/
 **/datasets/**
 
+# Kimi K3 project (kept local)
+k3-mini/
+
 # Logs
 training.log
 *.log
