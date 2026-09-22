@@ -36,9 +36,18 @@ python -m cnn_benchmark.run_benchmark
 python -m cnn_benchmark.run_benchmark --smoke
 ```
 
-Outputs: `cnn_benchmark/results.json` + summary table.
+Outputs: `cnn_benchmark/results.json` + summary table + **`cnn_benchmark/REPORT.md`** —
+a dynamically generated Markdown report (run setup, methodology, ranked comparison,
+per-model traces, plus a per-model section with accuracy trends and full 10x10
+confusion matrices). Every section is conditional on the actual
+output: latency tables only appear if the latency fields exist, divergence/collapsed-
+run notes only appear if a model actually diverged, parameter columns only if the
+counts were recorded, chart sections only for images that were saved (into
+`cnn_benchmark/assets/` by the Colab notebook).
 
-For Google Colab, open `cnn_benchmark/colab_cnn_benchmark.ipynb`.
+For Google Colab, open `cnn_benchmark/colab_cnn_benchmark.ipynb` — its final cells
+save every chart to `cnn_benchmark/assets/`, generate `REPORT.md`, preview it in the
+notebook, and download the report + charts + results as a zip.
 
 ## Library fixes included (these caused your laptop freeze)
 

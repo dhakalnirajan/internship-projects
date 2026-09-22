@@ -15,6 +15,7 @@ import numpy as np
 
 from cnn_benchmark.architectures import build_models
 from cnn_benchmark.harness import evaluate, to_onehot, train_model
+from cnn_benchmark.report import generate_report
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MNIST_FILE = os.path.join(HERE, "..", "mnist.npz")
@@ -96,6 +97,22 @@ def main():
     with open(out, "w") as f:
         json.dump(results, f, indent=2, default=float)
     print(f"\nSaved results to {out}")
+
+    # dynamic Markdown report (sections appear only when the data supports them)
+    report_path = generate_report(
+        results,
+        settings={
+            "mode": "smoke" if args.smoke else "full",
+            "SUBSET_TRAIN": int(X_train.shape[0]),
+            "EPOCHS": epochs,
+            "BATCH_SIZE": batch_size,
+            "LEARNING_RATE": 1e-3,
+            "dataset": "MNIST (mnist.npz)",
+        },
+        assets_dir=os.path.join(HERE, "assets"),
+        out_path=os.path.join(HERE, "REPORT.md"),
+    )
+    print(f"Report written to {report_path}")
 
 
 if __name__ == "__main__":
