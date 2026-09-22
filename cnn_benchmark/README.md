@@ -34,38 +34,7 @@ python -m cnn_benchmark.run_benchmark
 
 # tiny smoke benchmark
 python -m cnn_benchmark.run_benchmark --smoke
-
-# pretrained-weights path: quick-train a PyTorch twin of MNIST-CNN,
-# convert its weights into nn, benchmark nn inference-only (needs torch)
-python -m cnn_benchmark.run_benchmark --mode pretrained
-
-# same + LeNet-5-full / AlexNet-mirror twins, same-weights nn-vs-PyTorch
-# latency comparison, and a torchvision pretrained (ImageNet) reference
-# (needs torch + torchvision)
-python -m cnn_benchmark.run_benchmark --mode pytorch
 ```
-
-## Weight loading / converting (`torch_bridge.py`)
-
-The `pretrained` and `pytorch` modes never train the nn side. Instead:
-
-1. `specs.py` defines each mirror architecture **once** as a plain layer list;
-   `build_nn_from_spec` builds it in nn and `build_torch_from_spec` builds the
-   identical twin in PyTorch (parameter counts match exactly).
-2. The PyTorch twin is quick-trained on MNIST (~1 min for MNIST-CNN) or its
-   weights are reused from `cnn_benchmark/weights/*.npz`.
-3. `load_weights_into_nn` converts the state_dict into the nn library:
-   torch OIHW kernels → nn HWIO, transposed Linear weights, BatchNorm running
-   stats via `sync_running_stats`, and a flatten-order permutation (torch
-   flattens NCHW, nn flattens NHWC) on the first Linear after a Flatten.
-4. Accuracy cross-check: the loaded nn model reproduces the PyTorch twin's
-   test accuracy exactly (same weights, same data).
-5. `pytorch` mode additionally benchmarks both engines on the same weights
-   (inference latency, throughput, train-step) and pulls torchvision
-   pretrained ImageNet models as a speed reference table.
-
-The `REPORT.md` gains a conditional **`nn versus PyTorch (loaded weights)`**
-section whenever cross-framework results are present in `results.json`.
 
 Outputs: `cnn_benchmark/results.json` + summary table + **`cnn_benchmark/REPORT.md`** —
 a dynamically generated Markdown report (run setup, methodology, ranked comparison,
