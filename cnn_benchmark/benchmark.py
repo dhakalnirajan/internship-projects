@@ -55,7 +55,8 @@ def _fake_mnist(batch):
 
 
 # ----------------------------------------------------------------- engines
-def run_nn(x):
+def run_nn(x, nn_model=None):
+    """The reference engine; nn_model is ignored (this IS the nn model)."""
     model = build_nn_from_spec(MNIST_CNN)
     sample = x[:2]
     model.forward(sample, training=True)   # warm-up builds lazy params
@@ -101,7 +102,8 @@ def run_tensorflow(x, nn_model=None):
         import tensorflow as tf
     except ImportError:
         return None
-    tx = tf.constant(x.transpose(0, 3, 1, 2))  # NHWC -> NCHW (channels_first)
+    # Keras default data format is channels_last (NHWC) — same as the spec
+    tx = tf.constant(x)
     layers = []
     for step in MNIST_CNN["layers"]:
         if "conv" in step:
@@ -158,7 +160,7 @@ def run_tensorflow(x, nn_model=None):
                                np.asarray(nn_l.b.data)])
 
     def forward():
-        return model(tx, training=False).numpy().transpose(0, 2, 3, 1)
+        return model(tx, training=False).numpy()
 
     return {"build": "eager", "forward": forward}
 
@@ -210,8 +212,8 @@ def run_jax(x, nn_model=None):
             denses.append((jnp.asarray(l.W.data),                # (in, out)
                            jnp.asarray(l.b.data)))
 
-    def forward():
-        h = jnp.asarray(x)          # NHWC
+    def forward(arr):
+        h = arr              # traced input: keeps XLA from folding the graph
         ci = bi = di = 0
         for step in MNIST_CNN["layers"]:
             if "conv" in step:
@@ -248,7 +250,7 @@ def run_jax(x, nn_model=None):
     compiled = jax.jit(forward)    # first call compiles; _latency warms up
 
     def run():
-        return np.asarray(compiled())
+        return np.asarray(compiled(jnp.asarray(x)))
 
     return {"build": "jit-compiled", "forward": run}
 
@@ -363,6 +365,12 @@ def main():
             json.dump({"batch_size": args.batch_size, "runs": args.runs,
                        "results": rows}, f, indent=2)
         print(f"\nwrote {args.json}")
+
+    # The nn reference engine must actually have run — otherwise every diff
+    # is 0.0 by default and the check would pass vacuously.
+    if not any(r.get("backend") == "nn" and "latency_ms" in r for r in rows):
+        print("FAIL: nn reference engine did not run", file=sys.stderr)
+        return 1
 
     # Fail if the nn engine disagrees with an installed backend by too much.
     bad = [r for r in rows if "max_diff_vs_nn" in r and r["max_diff_vs_nn"] > 0.05]

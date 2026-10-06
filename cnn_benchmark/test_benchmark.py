@@ -73,9 +73,18 @@ def test_spec_builds_and_counts():
 
 
 # ------------------------------------------------------- torch bridge (torch)
-torch = pytest.importorskip("torch", reason="torch not installed")
+# NOT a module-level importorskip: that would skip the whole module (pure-
+# NumPy tests included) whenever torch is missing and pytest exits 5 with
+# "no tests ran". Mark only the torch-dependent tests instead.
+try:
+    import torch
+except ImportError:
+    torch = None
+
+requires_torch = pytest.mark.skipif(torch is None, reason="torch not installed")
 
 
+@requires_torch
 def test_torch_twin_param_parity():
     from cnn_benchmark import torch_bridge as tb
     spec = MNIST_CNN
@@ -89,6 +98,7 @@ def test_torch_twin_param_parity():
     assert n_torch == nn_m.count_params()
 
 
+@requires_torch
 def test_weight_conversion_roundtrip():
     """Same weights in both engines must give identical argmax predictions."""
     from cnn_benchmark import torch_bridge as tb
@@ -124,6 +134,7 @@ def test_flatten_shape_helper():
     assert (c, h, w) == (64, 7, 7)
 
 
+@requires_torch
 def test_all_specs_build_in_both_engines():
     from cnn_benchmark import torch_bridge as tb
     for spec in SPECS.values():
