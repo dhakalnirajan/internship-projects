@@ -1,0 +1,65 @@
+Custom CUDA kernels compiled successfully! Accelerating training via GPU...
+
+=== LeNet-5 ===
+  epoch 1/5  loss=14.1770  acc=0.1095  (1.5s)  val_acc=0.1040
+  epoch 2/5  loss=14.6373  acc=0.1655  (2.3s)  val_acc=0.1610
+  epoch 3/5  loss=12.7511  acc=0.2925  (1.5s)  val_acc=0.2865
+  epoch 4/5  loss=13.0992  acc=0.2975  (2.1s)  val_acc=0.2795
+  epoch 5/5  loss=12.5516  acc=0.3045  (1.5s)  val_acc=0.2940
+  params=61,706  test_acc=0.3020  (33.2s)
+
+=== AlexNet-mini ===
+  epoch 1/5  loss=15.4943  acc=0.1100  (33.0s)  val_acc=0.1025
+  epoch 2/5  loss=16.3867  acc=0.1100  (32.8s)  val_acc=0.1025
+  epoch 3/5  loss=16.1565  acc=0.1100  (30.1s)  val_acc=0.1025
+  epoch 4/5  loss=16.5786  acc=0.1100  (30.5s)  val_acc=0.1025
+  epoch 5/5  loss=16.2902  acc=0.0990  (31.1s)  val_acc=0.0935
+  params=1,733,258  test_acc=0.1160  (549.7s)
+
+=== VGG16-mini ===
+  epoch 1/5  loss=16.4370  acc=0.1000  (19.6s)  val_acc=0.1015
+  epoch 2/5  loss=16.7129  acc=0.1000  (21.2s)  val_acc=0.1015
+  epoch 3/5  loss=16.6937  acc=0.1050  (21.2s)  val_acc=0.0960
+  epoch 4/5  loss=16.7705  acc=0.1050  (19.8s)  val_acc=0.0960
+  epoch 5/5  loss=16.6746  acc=0.1050  (21.3s)  val_acc=0.0960
+  params=443,386  test_acc=0.0940  (465.4s)
+
+=== ResNet18-mini ===
+  epoch 1/5  loss=7.4624  acc=0.1965  (10.0s)  val_acc=0.1770
+  epoch 2/5  loss=3.8937  acc=0.2790  (9.8s)  val_acc=0.2635
+  epoch 3/5  loss=2.9919  acc=0.2630  (9.2s)  val_acc=0.2610
+  epoch 4/5  loss=2.3942  acc=0.3810  (9.0s)  val_acc=0.3760
+  epoch 5/5  loss=1.9749  acc=0.4300  (9.5s)  val_acc=0.4130
+  params=97,802  test_acc=0.3630  (255.2s)
+
+=== GoogLeNet-mini ===
+  epoch 1/5  loss=3.4393  acc=0.6360  (16.8s)  val_acc=0.6430
+  epoch 2/5  loss=2.3898  acc=0.7510  (15.4s)  val_acc=0.7575
+  epoch 3/5  loss=2.2939  acc=0.7990  (20.5s)  val_acc=0.8040
+  epoch 4/5  loss=2.3509  acc=0.7940  (16.0s)  val_acc=0.8035
+  epoch 5/5  loss=2.0083  acc=0.8145  (15.8s)  val_acc=0.8100
+  params=36,974  test_acc=0.7930  (427.7s)
+
+=== DenseNet-mini ===
+  epoch 1/5  loss=5.7122  acc=0.1725  (27.6s)  val_acc=0.1565
+  epoch 2/5  loss=3.3905  acc=0.3360  (23.3s)  val_acc=0.3525
+  epoch 3/5  loss=1.8797  acc=0.5110  (26.3s)  val_acc=0.5530
+  epoch 4/5  loss=1.4355  acc=0.6015  (22.5s)  val_acc=0.6195
+  epoch 5/5  loss=1.0272  acc=0.7075  (22.6s)  val_acc=0.7040
+  params=28,778  test_acc=0.6660  (634.0s)
+
+=== SqueezeNet-mini ===
+  epoch 1/5  loss=2.2740  acc=0.3595  (10.8s)  val_acc=0.3495
+  epoch 2/5  loss=2.0732  acc=0.3095  (10.6s)  val_acc=0.2950
+  epoch 3/5  loss=1.9169  acc=0.5220  (10.3s)  val_acc=0.5585
+  epoch 4/5  loss=1.7989  acc=0.6445  (10.8s)  val_acc=0.6440
+  epoch 5/5  loss=1.6759  acc=0.6240  (10.5s)  val_acc=0.5835
+  params=24,066  test_acc=0.5450  (275.0s)
+
+=== MobileNetV1-mini ===
+  epoch 1/5  loss=16.5698  acc=0.0860  (7.2s)  val_acc=0.1080
+  epoch 2/5  loss=16.8472  acc=0.0860  (7.6s)  val_acc=0.1080
+  epoch 3/5  loss=16.5594  acc=0.0860  (8.4s)  val_acc=0.1080
+  epoch 4/5  loss=16.6170  acc=0.0860  (8.4s)  val_acc=0.1080
+  epoch 5/5  loss=16.5211  acc=0.0860  (8.4s)  val_acc=0.1080
+  params=219,570  test_acc=0.0890  (120.7s)

@@ -43,9 +43,15 @@ build/
 *.exe
 
 # Checkpoints (large binary files)
+*.pt
+*.pth
+*.onnx
+*.joblib
 checkpoints/*.bin
 checkpoints/*.pt
 checkpoints/*.pth
+**/**/*.npz
+**/**/*.joblib
 
 # Datasets (large text files)
 datasets/*.txt
@@ -63,3 +69,6 @@ training.log
 *.log
 evaluation_results.json
 
+*.pdf
+
+INTERN_LOG.md
