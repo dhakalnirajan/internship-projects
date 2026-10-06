@@ -9,36 +9,36 @@ data:
 # Training
 train:
   model_size: "yolov8s.pt" # Options: n, s, m, l, x
-  epochs: 100
+  epochs: 25
   batch_size: 16
   img_size: 640
   lr0: 0.01
   lrf: 0.01
   weight_decay: 0.0005
   augment: true
-  patience: 20 # Early stopping
+  patience: 20
 
-# GPS hardware
-# gps:
-#   port: "/dev/ttyUSB0" # adjust to your serial port
-#   baudrate: 9600
-#   timeout: 1
+# Evaluation & Validation Settings
+evaluation:
+  conf: 0.001
+  iou: 0.6
+  max_det: 300
 
-# Real-time detection
+# Real-time detection & Inference
 inference:
   conf_threshold: 0.6
   iou_threshold: 0.5
-  frame_skip: 3 # Process every Nth frame
-  max_age: 30 # Frames before dropping track
-  min_hits: 3 # Minimum detections to confirm a track
-  alert_distance_meters: 5.0 # Trigger warning if pothole within this distance
+  frame_skip: 3
+  max_age: 30
+  min_hits: 3
+  alert_distance_meters: 5.0
 
-# Export
+# Export & Benchmark
 export:
-  format: "onnx" # onnx, tflite, tensorrt
+  format: "onnx"
   half: true
   int8: false
 
 logging:
-  level: "INFO" # DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
   file: "pothole.log"
