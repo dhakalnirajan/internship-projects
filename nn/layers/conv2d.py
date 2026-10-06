@@ -56,7 +56,8 @@ class _Conv2DFunction(Function):
         # directly would scramble filter/channel order. Flatten as (F, kh, kw, C).
         kernel_flat = kernel.transpose(3, 0, 1, 2).reshape(F, -1)   # (F, kh*kw*C)
         out_flat = np.einsum('fk,nkw->nfw', kernel_flat, patches)  # (N, F, L)
-        out_flat += bias.reshape(1, F, 1)            # Add bias terms per filter
+        if bias is not None:
+            out_flat += bias.reshape(1, F, 1)        # Add bias terms per filter
         out = out_flat.reshape(N, F, out_h, out_w).transpose(0, 2, 3, 1)  # (N, out_h, out_w, F)
         return out
 
@@ -73,7 +74,7 @@ class _Conv2DFunction(Function):
         out_h, out_w = grad_output.shape[1:3]
 
         # Gradient with respect to bias: sum over batch and spatial dimensions
-        dbias = grad_output.sum(axis=(0, 1, 2))
+        dbias = grad_output.sum(axis=(0, 1, 2)) if bias is not None else None
 
         # Gradient with respect to kernel weights (dkernel)
         grad_flat = grad_output.transpose(0, 3, 1, 2).reshape(N, F, -1)  # (N, F, L)
@@ -106,12 +107,13 @@ class _Conv2DFunction(Function):
 
 
 class Conv2D(Layer):
-    def __init__(self, filters, kernel_size, strides=(1,1), padding='valid'):
+    def __init__(self, filters, kernel_size, strides=(1,1), padding='valid', use_bias=True):
         super().__init__()
         self.filters = filters
         self.kernel_size = kernel_size if isinstance(kernel_size, tuple) else (kernel_size, kernel_size)
         self.strides = strides if isinstance(strides, tuple) else (strides, strides)
         self.padding = padding
+        self.use_bias = use_bias
         self.kernel = None
         self.bias = None
         self.built = False
@@ -124,7 +126,7 @@ class Conv2D(Layer):
         # Xavier / Glorot uniform weight initialization
         limit = np.sqrt(6 / (in_channels + self.filters))
         self.kernel = Tensor(np.random.uniform(-limit, limit, k_shape), requires_grad=True)
-        self.bias = Tensor(np.zeros(self.filters), requires_grad=True)
+        self.bias = Tensor(np.zeros(self.filters), requires_grad=True) if self.use_bias else None
         self.built = True
 
     def forward(self, inputs):
@@ -146,11 +148,15 @@ class Conv2D(Layer):
             self.kernel.grad = dkernel
         else:
             self.kernel.grad += dkernel
-        if self.bias.grad is None:
-            self.bias.grad = dbias
-        else:
-            self.bias.grad += dbias
+        if self.use_bias:
+            if self.bias.grad is None:
+                self.bias.grad = dbias
+            else:
+                self.bias.grad += dbias
         return Tensor(grad_input, requires_grad=False)
 
     def parameters(self):
-        return [('kernel', self.kernel), ('bias', self.bias)]
+        params = [('kernel', self.kernel)]
+        if self.use_bias:
+            params.append(('bias', self.bias))
+        return params

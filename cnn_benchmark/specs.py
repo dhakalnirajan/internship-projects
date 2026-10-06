@@ -101,8 +101,7 @@ VGG16_MNIST = {
          {"conv": {"out": 512, "k": 3, "stride": 1, "pad": 1}}, {"relu": {}},
          {"conv": {"out": 512, "k": 3, "stride": 1, "pad": 1}}, {"relu": {}},
          {"conv": {"out": 512, "k": 3, "stride": 1, "pad": 1}}, {"relu": {}},
-         {"maxpool": {"k": 2, "stride": 2}},
-         {"flatten": {}},
+         {"flatten": {}},   # no 5th maxpool: 28x28 input collapses to 1x1 after 4 pools
          {"dense": {"out": 512, "activation": "relu"}},
          {"dropout": {"p": 0.5}},
          {"dense": {"out": 512, "activation": "relu"}},
@@ -174,7 +173,8 @@ def build_nn_from_spec(spec, input_shape=None):
         if "conv" in step:
             c = step["conv"]
             layers.append(Conv2D(c["out"], c["k"], strides=(c["stride"], c["stride"]),
-                                 padding="same" if c.get("pad") else "valid"))
+                                 padding="same" if c.get("pad") else "valid",
+                                 use_bias=c.get("bias", True)))
         elif "bn" in step:
             layers.append(BatchNorm2D(step["bn"]["c"]))
         elif "relu" in step:

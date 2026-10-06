@@ -433,9 +433,6 @@ def _caveats(ranked):
             "PyTorch/TF formats and cannot be loaded into a pure-NumPy autograd "
             "engine, so every architecture trains from random init; the comparison is "
             "about architectural *patterns*, not pretrained accuracy.")
-        f"- **Chance level is {_pct(CHANCE_LEVEL)}** (10 balanced digit classes) — "
-        "anything near it did not learn at these settings.",
-    ]
     weak = [r["model"] for r in ranked if _acc(r) <= 0.15]
     if weak:
         lines.append(f"- **Collapsed runs:** {', '.join(weak)} ended at chance "
