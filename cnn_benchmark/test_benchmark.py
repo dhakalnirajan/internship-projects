@@ -167,3 +167,50 @@ def test_report_no_cross_section_for_scratch():
         generate_report(results, assets_dir=d, out_path=out, title="T")
         text = open(out, encoding="utf-8").read()
     assert "nn versus PyTorch" not in text
+
+
+def test_report_benchmark_table():
+    """benchmark_results JSON renders the cross-framework table; absent JSON
+    renders no section."""
+    results = [{"model": "LeNet-5", "params": 61706, "test_acc": 0.9,
+                "train_s": 100.0, "history": {"loss": [0.5], "acc": [0.9], "val_acc": [0.9]}}]
+    bench = {
+        "batch_size": 32, "runs": 3,
+        "results": [
+            {"backend": "nn", "latency_ms": 129.05, "imgs_per_s": 248,
+             "max_diff_vs_nn": 0.0},
+            {"backend": "pytorch", "latency_ms": 6.05, "imgs_per_s": 5285,
+             "max_diff_vs_nn": 1.2e-06},
+            {"backend": "mlx", "status": "not installed"},
+        ],
+    }
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        out = os.path.join(d, "REPORT.md")
+        # explicit dict
+        generate_report(results, assets_dir=d, out_path=out, title="T",
+                        benchmark_results=bench)
+        text = open(out, encoding="utf-8").read()
+        assert "Cross-framework inference benchmark" in text
+        assert "129.05" in text and "5,285" in text
+        assert "not installed" in text
+        # auto-discovery from assets_dir
+        import json
+        with open(os.path.join(d, "benchmark_results.json"), "w") as f:
+            json.dump(bench, f)
+        out2 = os.path.join(d, "REPORT2.md")
+        generate_report(results, assets_dir=d, out_path=out2, title="T")
+        text2 = open(out2, encoding="utf-8").read()
+        assert "Cross-framework inference benchmark" in text2
+        # no JSON anywhere relevant -> no section (chdir so cwd discovery can't see one)
+        import tempfile as _tf
+        with _tf.TemporaryDirectory() as d2:
+            out3 = os.path.join(d2, "REPORT3.md")
+            old = os.getcwd()
+            try:
+                os.chdir(d2)
+                generate_report(results, assets_dir=d2, out_path=out3, title="T")
+            finally:
+                os.chdir(old)
+            text3 = open(out3, encoding="utf-8").read()
+            assert "Cross-framework inference benchmark" not in text3

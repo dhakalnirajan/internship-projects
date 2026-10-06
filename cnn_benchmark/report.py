@@ -629,6 +629,67 @@ def _cross_framework(ranked):
     return "\n".join(lines) + "\n"
 
 
+def _benchmark_section(benchmark):
+    """Cross-framework inference table from benchmark.py's JSON output.
+
+    `benchmark` is the dict written by `python -m cnn_benchmark.benchmark --json`:
+    {"batch_size": N, "runs": N, "results": [{backend, latency_ms, ...} | {backend, status}]}.
+    Returns a Markdown section body, or None when there is nothing to show.
+    """
+    if not benchmark:
+        return None
+    rows_in = benchmark.get("results") or []
+    if not rows_in:
+        return None
+    table_rows = []
+    for r in rows_in:
+        if "latency_ms" in r:
+            diff = r.get("max_diff_vs_nn")
+            table_rows.append([
+                r["backend"],
+                f"{r['latency_ms']:.2f}",
+                f"{r['imgs_per_s']:,}",
+                f"{diff:.2e}" if diff is not None else "&mdash;",
+                "ok",
+            ])
+        else:
+            table_rows.append([r["backend"], "&mdash;", "&mdash;",
+                               "&mdash;", r.get("status", "&mdash;")])
+    lines = [
+        f"Same weights, five engines: the nn model's parameters were loaded "
+        f"into every installed framework, then each ran `{benchmark.get('batch_size', '?')}` "
+        f"images/batch (median of {benchmark.get('runs', '?')} timed runs) on the shared "
+        "MNIST-CNN spec. `max diff vs nn` is the largest absolute output "
+        "difference from the nn engine; rows marked *not installed* were "
+        "skipped because the framework is unavailable on this runner.",
+        "",
+        _md_table(["Backend", "Latency (ms/batch)", "Throughput (img/s)",
+                   "max diff vs nn", "Status"], table_rows),
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _load_benchmark(benchmark_results, assets_dir, out_path):
+    """Resolve benchmark JSON: explicit dict/path wins, else look for
+    benchmark_results.json next to the report, in assets_dir, or cwd."""
+    import json as _json
+    if isinstance(benchmark_results, dict):
+        return benchmark_results
+    candidates = []
+    if benchmark_results:
+        candidates.append(benchmark_results)
+    for d in (os.path.dirname(os.path.abspath(out_path)), assets_dir, os.getcwd()):
+        if d:
+            candidates.append(os.path.join(d, "benchmark_results.json"))
+    for path in candidates:
+        try:
+            with open(path, encoding="utf-8") as f:
+                return _json.load(f)
+        except (OSError, ValueError):
+            continue
+    return None
+
+
 def _per_model_detail(ranked):
     """Per-model accuracy trend + confusion matrix; None if neither exists."""
     blocks = []
@@ -662,13 +723,16 @@ def _per_model_detail(ranked):
 
 # ----------------------------------------------------------------------- main
 def generate_report(results, settings=None, assets_dir=None,
-                    out_path="REPORT.md", title="CNN Benchmark Report"):
+                    out_path="REPORT.md", title="CNN Benchmark Report",
+                    benchmark_results=None):
     """Write a Markdown report for this run and return its path.
 
     results    -- list of result dicts (what's in results.json)
     settings   -- run settings to document, e.g. {"EPOCHS": 5, ...}
     assets_dir -- directory of saved chart PNGs to embed (optional)
     out_path   -- where to write the .md file
+    benchmark_results -- dict/path from `cnn_benchmark.benchmark --json`, or
+                 None to auto-discover benchmark_results.json (see _load_benchmark)
     """
     settings = settings or {}
     ranked = sorted(list(results or []), key=lambda r: -_acc(r))
@@ -709,6 +773,10 @@ def generate_report(results, settings=None, assets_dir=None,
     cross = _cross_framework(ranked)
     if cross:
         sections.append(("nn versus PyTorch (loaded weights)", cross))
+    bench = _benchmark_section(
+        _load_benchmark(benchmark_results, assets_dir, out_path))
+    if bench:
+        sections.append(("Cross-framework inference benchmark", bench))
     sections.append(("Notes and caveats", _caveats(ranked)))
     sections.append(("Artifacts", _artifacts(out_path, assets_dir)))
 
