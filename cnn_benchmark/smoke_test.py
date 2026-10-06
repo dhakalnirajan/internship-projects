@@ -1,18 +1,69 @@
-"""Tiny end-to-end smoke test: 1 forward+backward step on every architecture."""
-import numpy as np
+"""Fail-fast smoke test: syntax + import check of every project module.
 
-from cnn_benchmark.architectures import build_models
-from cnn_benchmark.harness import train_model, to_onehot
+Run this BEFORE pytest (see .github/workflows/tests.yml). A file with a
+syntax error, a bad import, or a missing dependency aborts the build here
+with a one-line error instead of an opaque pytest collection traceback.
 
-rng = np.random.default_rng(42)
-X = rng.random((64, 28, 28, 1)).astype(np.float32)
-y = rng.integers(0, 10, size=64)
-y_oh = to_onehot(y)
+Usage:
+    python -m cnn_benchmark.smoke_test
+"""
+import compileall
+import importlib
+import pkgutil
+import re
+import sys
 
-for m in build_models():
-    try:
-        h = train_model(m, X, y_oh, epochs=1, batch_size=16, max_batches=2, verbose=False)
-        status = "OK  loss=%.4f" % h["loss"][0]
-    except Exception as e:
-        status = "FAIL %s: %s" % (type(e).__name__, e)
-    print(f"{m.name:<18} params={m.count_params():>9,}  {status}")
+
+_SKIP = re.compile(r"\.(git|freebuff|venv)|node_modules|__pycache__|build|dist")
+
+
+def compile_all():
+    """Byte-compile every .py file under the repo root, skipping dot-dirs."""
+    ok = compileall.compile_file("cnn_benchmark/smoke_test.py", quiet=2, force=True)
+    for root in ("nn", "cnn_benchmark", "src"):
+        ok = compileall.compile_dir(root, quiet=2, force=True, rx=_SKIP) and ok
+        if not ok:
+            print(f"SMOKE FAIL: syntax error under {root}/", file=sys.stderr)
+            return False
+    return True
+
+
+def import_all():
+    """Import every module of the in-repo packages, catching real errors.
+
+    Optional heavy dependencies (torch, tensorflow, jax, mlx) are tolerated
+    as missing: the modules that need them must raise ImportError only for
+    that reason.
+    """
+    import cnn_benchmark
+    import nn
+
+    optional = {"torch", "torchvision", "tensorflow", "jax", "mlx", "mlx.core"}
+    failures = []
+    for pkg in (cnn_benchmark, nn):
+        for m in pkgutil.walk_packages(pkg.__path__, prefix=pkg.__name__ + "."):
+            name = m.name
+            try:
+                importlib.import_module(name)
+            except ImportError as e:
+                root = (e.msg.split("'") or [""])[1] if "'" in e.msg else ""
+                if any(opt in e.msg for opt in optional):
+                    continue  # missing optional dependency: fine in numpy-core job
+                failures.append(f"{name}: {type(e).__name__}: {e}")
+            except Exception as e:
+                failures.append(f"{name}: {type(e).__name__}: {e}")
+    if failures:
+        print("SMOKE FAIL: module import errors:", file=sys.stderr)
+        for f in failures:
+            print("  " + f, file=sys.stderr)
+        return False
+    return True
+
+
+if __name__ == "__main__":
+    ok = compile_all()
+    if ok:
+        ok = import_all()
+    if not ok:
+        sys.exit(1)
+    print("SMOKE OK: all modules compile and import cleanly")
