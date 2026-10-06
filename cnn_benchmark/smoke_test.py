@@ -43,6 +43,11 @@ def import_all():
     for pkg in (cnn_benchmark, nn):
         for m in pkgutil.walk_packages(pkg.__path__, prefix=pkg.__name__ + "."):
             name = m.name
+            # test modules are run by pytest itself; importing one here would
+            # re-trigger module-level pytest.importorskip(), whose Skipped
+            # exception only makes sense inside a pytest session.
+            if name.rsplit(".", 1)[-1].startswith("test_"):
+                continue
             try:
                 importlib.import_module(name)
             except ImportError as e:
@@ -51,6 +56,10 @@ def import_all():
                     continue  # missing optional dependency: fine in numpy-core job
                 failures.append(f"{name}: {type(e).__name__}: {e}")
             except Exception as e:
+                failures.append(f"{name}: {type(e).__name__}: {e}")
+            except BaseException as e:  # pytest's Skipped (a BaseException)
+                if type(e).__name__ == "Skipped":
+                    continue
                 failures.append(f"{name}: {type(e).__name__}: {e}")
     if failures:
         print("SMOKE FAIL: module import errors:", file=sys.stderr)

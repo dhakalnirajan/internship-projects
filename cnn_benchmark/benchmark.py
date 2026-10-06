@@ -111,7 +111,8 @@ def run_tensorflow(x, nn_model=None):
                 padding="same" if c.get("pad") else "valid",
                 use_bias=c.get("bias", True)))
         elif "bn" in step:
-            layers.append(tf.keras.layers.BatchNormalization())
+            # epsilon must match nn's BatchNorm2D (1e-5), not Keras' 1e-3 default
+            layers.append(tf.keras.layers.BatchNormalization(epsilon=1e-5))
         elif "relu" in step:
             layers.append(tf.keras.layers.ReLU())
         elif "maxpool" in step:
@@ -153,7 +154,7 @@ def run_tensorflow(x, nn_model=None):
                 nn_l = _next_of_type(nn_layers, "Dense")
                 if nn_l is None:
                     break
-                l.set_weights([np.asarray(nn_l.W.data).T,
+                l.set_weights([np.asarray(nn_l.W.data),
                                np.asarray(nn_l.b.data)])
 
     def forward():
@@ -178,11 +179,15 @@ def _unwrap_layers(model):
 
 
 def run_jax(x, nn_model=None):
-    """JAX runs the nn engine's forward under jit — JAX traces through the
-    pure-NumPy ops, so weight sharing is automatic (it IS the nn model)."""
+    """JAX backend: rebuilds the MNIST_CNN spec with jax.numpy/lax ops,
+    loading the SAME weights from the nn model (nn kernels are already
+    HWIO, which is exactly JAX's conv layout). jax.jit compiles the
+    forward — unlike jit-ing the nn engine's NumPy code, which JAX cannot
+    trace (TracerArrayConversionError)."""
     try:
         import jax
         import jax.numpy as jnp
+        from jax import lax
     except ImportError:
         return None
     if nn_model is None:
@@ -190,17 +195,62 @@ def run_jax(x, nn_model=None):
         nn_model.forward(x[:2], training=True)
         nn_model.forward(x[:2], training=False)
 
-    @jax.jit
-    def fwd(arr):
-        out = nn_model.forward(np.asarray(arr), training=False)
-        return jnp.asarray(out.data)
-
-    jx = jnp.asarray(x)
+    # collect shared weights in nn layer order
+    convs, bns, denses = [], [], []
+    for l in nn_model.seq.layers:
+        n = type(l).__name__
+        if n == "Conv2D":
+            convs.append((jnp.asarray(l.kernel.data),            # HWIO
+                          jnp.asarray(l.bias.data) if l.use_bias else None))
+        elif n == "BatchNorm2D":
+            bns.append((jnp.asarray(l.gamma.data), jnp.asarray(l.beta.data),
+                        jnp.asarray(l.running_mean),
+                        jnp.asarray(l.running_var), l.eps))
+        elif n == "Dense":
+            denses.append((jnp.asarray(l.W.data),                # (in, out)
+                           jnp.asarray(l.b.data)))
 
     def forward():
-        return np.asarray(fwd(jx))
+        h = jnp.asarray(x)          # NHWC
+        ci = bi = di = 0
+        for step in MNIST_CNN["layers"]:
+            if "conv" in step:
+                w, b = convs[ci]; ci += 1
+                h = lax.conv_general_dilated(h, w, (1, 1), "SAME",
+                                             dimension_numbers=("NHWC", "HWIO", "NHWC"))
+                if b is not None:
+                    h = h + b
+            elif "relu" in step:
+                h = jnp.maximum(h, 0)
+            elif "bn" in step:
+                g, bv, rm, rv, eps = bns[bi]; bi += 1
+                h = (h - rm) * (g / jnp.sqrt(rv + eps)) + bv
+            elif "maxpool" in step:
+                p = step["maxpool"]
+                h = lax.reduce_window(h, -jnp.inf, lax.max,
+                                      (1, p["k"], p["k"], 1),
+                                      (1, p["stride"], p["stride"], 1), "VALID")
+            elif "flatten" in step:
+                h = h.reshape((h.shape[0], -1))
+            elif "dense" in step:
+                W, b = denses[di]; di += 1
+                h = h @ W + b
+                act = step["dense"].get("activation")
+                if act == "relu":
+                    h = jnp.maximum(h, 0)
+                elif act == "softmax":
+                    e = jnp.exp(h - h.max(axis=1, keepdims=True))
+                    h = e / e.sum(axis=1, keepdims=True)
+            elif "dropout" in step:
+                pass  # inference: identity
+        return h
 
-    return {"build": "jit-compiled", "forward": forward}
+    compiled = jax.jit(forward)    # first call compiles; _latency warms up
+
+    def run():
+        return np.asarray(compiled())
+
+    return {"build": "jit-compiled", "forward": run}
 
 
 def run_mlx(x, nn_model=None):
@@ -233,34 +283,53 @@ ENGINES = {
 
 # ----------------------------------------------------------------- driver
 def benchmark(batch=256, runs=20):
+    """Run every installed engine and compare against the nn output.
+
+    Weight sharing happens during the loop (PyTorch's state_dict is loaded
+    INTO the nn model; TensorFlow/JAX read weights OUT of it), so the nn
+    reference is recomputed AFTER every engine has run — otherwise the
+    reference would come from a different weight generation than the other
+    engines and every diff would be initialization noise, not math.
+    """
     x, _ = _fake_mnist(batch)
-    rows = []
-    ref = None
+    outputs = {}
+    latencies = {}
+    status = {}          # backend -> error/skip message (no measurement)
     nn_model = None
     for name in BACKEND_ORDER:
         fn = ENGINES[name]
         try:
-            res = fn(x) if nn_model is None else fn(x, nn_model)
-            # keep the first (nn) model so later engines share its weights
-            if res is not None and nn_model is None:
-                nn_model = res.get("model")
+            res = fn(x, nn_model)
+            if res is None:
+                status[name] = "not installed"
+                continue
+            if nn_model is None and res.get("model") is not None:
+                nn_model = res["model"]   # first engine (nn) owns the model
+            latencies[name] = _latency(res["forward"], runs)
+            outputs[name] = res["forward"]()
         except Exception as e:  # engine present but failed
-            rows.append({"backend": name, "status": f"error: {e}"})
-            continue
-        if res is None:
-            rows.append({"backend": name, "status": "not installed"})
-            continue
-        ms = _latency(res["forward"], runs)
-        out = res["forward"]()
-        diff = float(np.abs(out - ref).max()) if ref is not None else 0.0
-        rows.append({
-            "backend": name,
-            "latency_ms": round(ms, 2),
-            "imgs_per_s": round(_throughput(ms, batch)),
-            "max_diff_vs_nn": diff,
-        })
-        if name == "nn":
-            ref = out
+            status[name] = f"error: {e}"
+
+    # reference: nn forward with the FINAL shared weights
+    ref = None
+    if nn_model is not None:
+        ref = np.asarray(nn_model.forward(x, training=False).data)
+
+    rows = []
+    for name in BACKEND_ORDER:
+        if name in latencies:
+            ms = latencies[name]
+            diff = (float(np.abs(outputs[name] - ref).max())
+                    if ref is not None else 0.0)
+            rows.append({
+                "backend": name,
+                "latency_ms": round(ms, 2),
+                "imgs_per_s": round(_throughput(ms, batch)),
+                "max_diff_vs_nn": diff,
+            })
+        else:
+            rows.append({"backend": name,
+                         "status": status.get(name, "not run")})
     return rows
 
 
